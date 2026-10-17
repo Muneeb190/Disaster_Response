@@ -91,7 +91,7 @@ export function HomePage() {
             <div>
               <p className="text-xs text-neutral-700 font-medium mb-1">Emergency Use Disclaimer</p>
               <p className="text-xs text-neutral-600 leading-relaxed">
-                This is a demonstration platform for a hackathon project. All data shown is fictional.
+                Reports are shared with authorized coordinators. In a real emergency, contact local emergency services directly.
                 In a real emergency, always contact your local emergency services number directly.
                 This system is designed to support — not replace — official emergency response channels.
               </p>
@@ -102,7 +102,7 @@ export function HomePage() {
         {/* Demo info */}
         <div className="mt-8 flex items-center justify-center gap-2 text-xs text-neutral-400">
           <Clock size={14} />
-          <span>Fictional demo data is pre-loaded for demonstration purposes</span>
+          <span>Access is protected by role-based permissions</span>
         </div>
       </main>
 

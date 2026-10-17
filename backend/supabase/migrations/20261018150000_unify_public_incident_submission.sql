@@ -21,6 +21,14 @@ drop function if exists public.submit_public_incident(
   jsonb, text, text, public.tri_state, boolean
 );
 
+drop function if exists public.submit_public_incident(
+  public.incident_type, text, text, integer,
+  public.tri_state, public.tri_state, public.tri_state, public.tri_state,
+  double precision, double precision, text, text,
+  jsonb, text, text, public.tri_state, boolean,
+  text, text, text, text
+);
+
 create or replace function public.submit_public_incident(
   p_type public.incident_type,
   p_description text,
@@ -39,6 +47,10 @@ create or replace function public.submit_public_incident(
   p_followup_field text default null,
   p_followup_answer public.tri_state default null,
   p_followup_skipped boolean default false,
+  p_input_mode text default 'text',
+  p_voice_transcript text default null,
+  p_transcript_language text default null,
+  p_transcript_english text default null,
   p_voice_recording_id uuid default null
 )
 returns jsonb
@@ -59,6 +71,12 @@ begin
   if p_latitude not between -90 and 90 or p_longitude not between -180 and 180 then
     raise exception 'Invalid coordinates';
   end if;
+  if coalesce(p_input_mode, 'text') not in ('text', 'voice') then
+    raise exception 'Invalid input mode';
+  end if;
+  if p_transcript_language is not null and p_transcript_language not in ('en', 'ur', 'mixed', 'other') then
+    raise exception 'Invalid transcript language';
+  end if;
   if p_voice_recording_id is not null and not exists (
     select 1 from public.voice_recordings where id = p_voice_recording_id
   ) then
@@ -70,7 +88,8 @@ begin
     injuries_reported, vulnerable_people, danger_increasing, location,
     reporter_name, reporter_phone, reporter_user_id, tracking_token_hash,
     ai_extracted, followup_question, followup_field, followup_answer,
-    followup_skipped, voice_recording_id
+    followup_skipped, input_mode, voice_transcript, transcript_language,
+    transcript_english, voice_recording_id
   ) values (
     p_type, trim(p_description), nullif(trim(coalesce(p_area_landmark, '')), ''),
     p_people_affected, p_people_trapped, p_injuries_reported,
@@ -84,7 +103,11 @@ begin
         then p_ai_extracted
     end,
     left(p_followup_question, 300), p_followup_field, p_followup_answer,
-    coalesce(p_followup_skipped, false), p_voice_recording_id
+    coalesce(p_followup_skipped, false), coalesce(p_input_mode, 'text'),
+    left(p_voice_transcript, 5000),
+    case when p_input_mode = 'voice' then p_transcript_language end,
+    case when p_input_mode = 'voice' then left(p_transcript_english, 5000) end,
+    p_voice_recording_id
   ) returning * into created_incident;
 
   insert into public.audit_logs (
@@ -98,6 +121,8 @@ begin
       'type', created_incident.type,
       'followup_field', created_incident.followup_field,
       'followup_skipped', created_incident.followup_skipped,
+      'input_mode', created_incident.input_mode,
+      'transcript_language', created_incident.transcript_language,
       'voice_recording_id', created_incident.voice_recording_id
     ),
     'Emergency report submitted'
@@ -116,12 +141,14 @@ revoke execute on function public.submit_public_incident(
   public.incident_type, text, text, integer,
   public.tri_state, public.tri_state, public.tri_state, public.tri_state,
   double precision, double precision, text, text,
-  jsonb, text, text, public.tri_state, boolean, uuid
+  jsonb, text, text, public.tri_state, boolean,
+  text, text, text, text, uuid
 ) from public;
 
 grant execute on function public.submit_public_incident(
   public.incident_type, text, text, integer,
   public.tri_state, public.tri_state, public.tri_state, public.tri_state,
   double precision, double precision, text, text,
-  jsonb, text, text, public.tri_state, boolean, uuid
+  jsonb, text, text, public.tri_state, boolean,
+  text, text, text, text, uuid
 ) to anon, authenticated;

@@ -31,14 +31,11 @@ Documented demo coordinator mode limitation in README.
 
 create extension if not exists "postgis";
 create extension if not exists "pgcrypto";
-
 create sequence if not exists report_code_seq start 1;
-
 create or replace function increment_report_code()
 returns text language sql as $$
   select 'RN-' || lpad(nextval('report_code_seq')::text, 6, '0');
 $$;
-
 do $$ begin create type incident_type as enum ('flood','fire','medical_emergency','heatwave','other'); exception when duplicate_object then null; end $$;
 do $$ begin create type tri_state as enum ('yes','no','unknown'); exception when duplicate_object then null; end $$;
 do $$ begin create type priority_level as enum ('critical','high','moderate','low'); exception when duplicate_object then null; end $$;
@@ -46,7 +43,6 @@ do $$ begin create type incident_status as enum ('reported','verified','assigned
 do $$ begin create type verification_status as enum ('pending','verified','disputed','flagged'); exception when duplicate_object then null; end $$;
 do $$ begin create type team_status as enum ('available','assigned','offline'); exception when duplicate_object then null; end $$;
 do $$ begin create type assignment_status as enum ('assigned','dispatched','completed','cancelled'); exception when duplicate_object then null; end $$;
-
 create table if not exists incidents (
   id uuid primary key default gen_random_uuid(),
   report_code text not null default increment_report_code() unique,
@@ -81,7 +77,6 @@ create index if not exists idx_incidents_priority on incidents(priority_score de
 create index if not exists idx_incidents_created on incidents(created_at desc);
 create index if not exists idx_incidents_type on incidents(type);
 create index if not exists idx_incidents_location on incidents using gist(location);
-
 create table if not exists rescue_teams (
   id uuid primary key default gen_random_uuid(),
   team_code text not null default ('TM-' || lpad(nextval('report_code_seq')::text, 4, '0')),
@@ -98,7 +93,6 @@ create table if not exists rescue_teams (
 );
 create index if not exists idx_teams_status on rescue_teams(status);
 create index if not exists idx_teams_location on rescue_teams using gist(location);
-
 create table if not exists resources (
   id uuid primary key default gen_random_uuid(),
   name text not null,
@@ -111,7 +105,6 @@ create table if not exists resources (
   updated_at timestamptz not null default now()
 );
 create index if not exists idx_resources_type on resources(type);
-
 create table if not exists assignments (
   id uuid primary key default gen_random_uuid(),
   incident_id uuid not null references incidents(id) on delete cascade,
@@ -129,7 +122,6 @@ create table if not exists assignments (
 create index if not exists idx_assignments_incident on assignments(incident_id);
 create index if not exists idx_assignments_team on assignments(team_id);
 create index if not exists idx_assignments_status on assignments(status);
-
 create table if not exists audit_logs (
   id uuid primary key default gen_random_uuid(),
   actor text not null default 'system',
@@ -143,7 +135,6 @@ create table if not exists audit_logs (
 );
 create index if not exists idx_audit_entity on audit_logs(entity_type, entity_id);
 create index if not exists idx_audit_created on audit_logs(created_at desc);
-
 create table if not exists escalations (
   id uuid primary key default gen_random_uuid(),
   incident_id uuid not null references incidents(id) on delete cascade,
@@ -159,7 +150,6 @@ create table if not exists escalations (
 );
 create index if not exists idx_escalations_incident on escalations(incident_id);
 create index if not exists idx_escalations_created on escalations(created_at desc);
-
 create table if not exists alerts (
   id uuid primary key default gen_random_uuid(),
   incident_id uuid references incidents(id) on delete cascade,
@@ -173,7 +163,6 @@ create table if not exists alerts (
 );
 create index if not exists idx_alerts_created on alerts(created_at desc);
 create index if not exists idx_alerts_ack on alerts(acknowledged);
-
 -- ===================== PRIORITY SCORING =====================
 create or replace function calculate_priority(
   p_people_trapped tri_state, p_injuries_reported tri_state,
@@ -199,7 +188,6 @@ begin
   return query select s, lvl, r, lt;
 end;
 $$;
-
 -- ===================== RECALCULATE =====================
 create or replace function recalculate_incident_priority(p_incident_id uuid, p_actor text default 'system')
 returns table(new_score int, new_level priority_level, reasons text[], life_threatening boolean, escalated boolean)
@@ -223,7 +211,6 @@ begin
   return query select new_score, new_level, r, lt, esc;
 end;
 $$;
-
 -- ===================== RECOMMEND TEAMS =====================
 create or replace function recommend_teams(p_incident_id uuid)
 returns table(team_id uuid, team_name text, team_code text, capabilities text[], distance_km float, capability_match int, recommendation_reason text, current_status team_status)
@@ -252,7 +239,6 @@ begin
   from ranked order by match desc, dist asc;
 end;
 $$;
-
 -- ===================== CREATE ASSIGNMENT =====================
 create or replace function create_assignment(p_incident_id uuid, p_team_id uuid, p_resource_ids uuid[] default '{}', p_actor text default 'coordinator')
 returns uuid language plpgsql security definer as $$
@@ -281,7 +267,6 @@ begin
   return assignment_id;
 end;
 $$;
-
 -- ===================== CANCEL ASSIGNMENT =====================
 create or replace function cancel_assignment(p_assignment_id uuid, p_reason text default '', p_actor text default 'coordinator')
 returns void language plpgsql security definer as $$
@@ -299,7 +284,6 @@ begin
   insert into audit_logs (actor, action, entity_type, entity_id, new_values, reason) values (p_actor, 'assignment_cancel', 'assignment', p_assignment_id, jsonb_build_object('reason',p_reason), 'Assignment cancelled');
 end;
 $$;
-
 -- ===================== TRIGGERS =====================
 create or replace function set_updated_at() returns trigger language plpgsql as $$ begin new.updated_at := now(); return new; end; $$;
 drop trigger if exists trg_incidents_updated on incidents;
@@ -310,7 +294,6 @@ drop trigger if exists trg_resources_updated on resources;
 create trigger trg_resources_updated before update on resources for each row execute function set_updated_at();
 drop trigger if exists trg_assignments_updated on assignments;
 create trigger trg_assignments_updated before update on assignments for each row execute function set_updated_at();
-
 create or replace function incident_insert_priority() returns trigger language plpgsql as $$
 declare res record;
 begin
@@ -321,7 +304,6 @@ end;
 $$;
 drop trigger if exists trg_incidents_insert_priority on incidents;
 create trigger trg_incidents_insert_priority before insert on incidents for each row execute function incident_insert_priority();
-
 -- ===================== RLS =====================
 alter table incidents enable row level security;
 alter table rescue_teams enable row level security;
@@ -330,7 +312,6 @@ alter table assignments enable row level security;
 alter table audit_logs enable row level security;
 alter table escalations enable row level security;
 alter table alerts enable row level security;
-
 do $$
 declare t text; tbls text[] := array['incidents','rescue_teams','resources','assignments','audit_logs','escalations','alerts'];
 begin
@@ -345,7 +326,6 @@ begin
     execute format('create policy %I on %I for delete to anon, authenticated using (true)', t||'_delete', t);
   end loop;
 end $$;
-
 -- ===================== REALTIME =====================
 alter publication supabase_realtime add table incidents;
 alter publication supabase_realtime add table rescue_teams;

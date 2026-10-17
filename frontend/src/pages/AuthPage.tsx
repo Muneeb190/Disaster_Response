@@ -131,7 +131,7 @@ function AuthShell({ children }: { children: React.ReactNode }) {
       <div className="hidden lg:flex bg-[#102e2b] text-white p-12 flex-col justify-between">
         <Link to="/" className="flex items-center gap-3"><span className="w-10 h-10 rounded-lg bg-[#176f63] grid place-items-center"><Radio size={22} /></span><strong className="text-xl tracking-wide">RESQNET</strong></Link>
         <div className="max-w-xl"><ShieldCheck size={42} className="text-emerald-300 mb-5" /><h2 className="text-4xl font-semibold leading-tight">One identity. The right access for every response role.</h2><p className="text-slate-300 mt-4 leading-relaxed">Citizens keep their reports, responders receive team-specific assignments, and administrators coordinate the operation.</p></div>
-        <p className="text-xs text-slate-400">Hackathon demonstration system · Not a replacement for emergency services</p>
+        <p className="text-xs text-slate-400">Emergency coordination system · Not a replacement for emergency services</p>
       </div>
       <div className="grid place-items-center p-6"><div className="w-full max-w-sm"><Link to="/" className="lg:hidden flex items-center gap-2 font-bold mb-8"><Radio size={20} /> ResQNet</Link><div className="card card-body shadow-sm">{supabaseConfigurationError && <div className="flex gap-2 rounded-lg bg-red-50 border border-red-200 p-3 text-sm text-red-700 mb-4"><AlertCircle size={18} className="shrink-0" />{supabaseConfigurationError}</div>}{children}</div></div></div>
     </div>

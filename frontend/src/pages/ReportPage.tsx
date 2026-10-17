@@ -1,17 +1,18 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { Radio, ArrowLeft, ArrowRight, Check, Copy, MapPin, Sparkles, AlertCircle, Search, MessageCircleQuestion } from 'lucide-react';
+import { Radio, ArrowLeft, ArrowRight, Check, Copy, MapPin, Sparkles, AlertCircle, Search, MessageCircleQuestion, Mic, Square, Trash2 } from 'lucide-react';
 import { LocationPicker } from '@/components/map/IncidentMap';
-import { VoiceRecorder } from '@/components/VoiceRecorder';
 import { useCreateIncident } from '@/hooks/useData';
 import { useToast } from '@/components/ui/toast-context';
 import { LoadingSpinner } from '@/components/ui/States';
 import { Modal } from '@/components/ui/Modal';
 import { pickFollowupQuestion, type FollowupQuestion } from '@/lib/followup';
-import type { IncidentType, TriState } from '@/types';
+import { isRecordingSupported, startRecording, toWavBase64, type Recording } from '@/lib/voiceRecorder';
+import { TranscriptText } from '@/components/incident/TranscriptText';
+import type { IncidentType, TriState, VoiceTranscription } from '@/types';
 
 const schema = z.object({
   type: z.enum(['flood', 'fire', 'medical_emergency', 'heatwave', 'other']),
@@ -47,17 +48,19 @@ export function ReportPage() {
   const createIncident = useCreateIncident();
   const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [submittedCode, setSubmittedCode] = useState<string | null>(null);
-  const [submittedWithVoice, setSubmittedWithVoice] = useState<boolean | null>(null);
   const [submittedToken, setSubmittedToken] = useState<string | null>(null);
   const [aiExtracting, setAiExtracting] = useState(false);
   const [aiError, setAiError] = useState<string | null>(null);
   const [aiResults, setAiResults] = useState<Record<string, unknown> | null>(null);
   // Feature 12: at most one follow-up question, always skippable.
   const [followup, setFollowup] = useState<{ q: FollowupQuestion; data: FormData } | null>(null);
-  const [voiceRecordingId, setVoiceRecordingId] = useState<string | null>(null);
-  const [hasLocalAudio, setHasLocalAudio] = useState(false);
-  const [voiceUploading, setVoiceUploading] = useState(false);
-  const [reportDeliveryError, setReportDeliveryError] = useState<string | null>(null);
+  const [recording, setRecording] = useState(false);
+  const [recordingSeconds, setRecordingSeconds] = useState(0);
+  const [transcribing, setTranscribing] = useState(false);
+  const [voiceResult, setVoiceResult] = useState<VoiceTranscription | null>(null);
+  const [voiceError, setVoiceError] = useState<string | null>(null);
+  const recordingRef = useRef<Recording | null>(null);
+  const stoppingRef = useRef(false);
 
   const {
     register,
@@ -78,6 +81,80 @@ export function ReportPage() {
   });
 
   const description = watch('description');
+
+  useEffect(() => {
+    if (!recording) return;
+    const timer = window.setInterval(() => setRecordingSeconds((s) => s + 1), 1000);
+    return () => window.clearInterval(timer);
+  }, [recording]);
+
+  useEffect(() => () => recordingRef.current?.cancel(), []);
+
+  const applyVoiceResult = (result: VoiceTranscription) => {
+    setVoiceResult(result);
+    setValue('description', result.transcript, { shouldValidate: true });
+    setValue('type', result.incident_category);
+    if (result.people_affected !== null) setValue('people_affected', result.people_affected);
+    for (const field of ['people_trapped', 'injuries_reported', 'vulnerable_people', 'danger_increasing'] as const) {
+      if (result[field] !== 'unknown') setValue(field, result[field]);
+    }
+    setAiResults(result as unknown as Record<string, unknown>);
+  };
+
+  const finishRecording = async () => {
+    if (!recordingRef.current || stoppingRef.current) return;
+    stoppingRef.current = true;
+    const current = recordingRef.current;
+    recordingRef.current = null;
+    setRecording(false);
+    setTranscribing(true);
+    setVoiceError(null);
+    try {
+      const blob = await current.stop();
+      const audio = await toWavBase64(blob);
+      const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/transcribe`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY || import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+        },
+        body: JSON.stringify({ audio_base64: audio, mime_type: 'audio/wav' }),
+      });
+      const result = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(result.error || `Transcription failed (${res.status})`);
+      applyVoiceResult(result as VoiceTranscription);
+      toast('Voice report transcribed. Please review it before submitting.', 'success');
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Could not transcribe the recording';
+      setVoiceError(message);
+      toast(message, 'error');
+    } finally {
+      stoppingRef.current = false;
+      setTranscribing(false);
+    }
+  };
+
+  const beginRecording = async () => {
+    setVoiceError(null);
+    setVoiceResult(null);
+    setRecordingSeconds(0);
+    try {
+      recordingRef.current = await startRecording(() => void finishRecording());
+      setRecording(true);
+    } catch (err) {
+      setVoiceError(err instanceof Error && err.name === 'NotAllowedError'
+        ? 'Microphone permission was denied. Allow microphone access or type your report.'
+        : 'Could not access the microphone. You can still type your report.');
+    }
+  };
+
+  const removeVoice = () => {
+    recordingRef.current?.cancel();
+    recordingRef.current = null;
+    setRecording(false);
+    setVoiceResult(null);
+    setVoiceError(null);
+  };
 
   const handleAiExtract = async () => {
     if (!description || description.length < 10) {
@@ -150,6 +227,8 @@ export function ReportPage() {
   const submitReport = async (data: FormData, asked: { question: string; field: string; answer: TriState | null } | null) => {
     if (!coords) return;
     try {
+      const clientSessionId = localStorage.getItem('resqnet_reporter_session') || crypto.randomUUID();
+      localStorage.setItem('resqnet_reporter_session', clientSessionId);
       const incident = await createIncident.mutateAsync({
         type: data.type,
         description: data.description,
@@ -163,23 +242,21 @@ export function ReportPage() {
         longitude: coords.lng,
         reporter_name: data.reporter_name,
         reporter_phone: data.reporter_phone,
-        ai_extracted: aiResults,
+        ai_extracted: { ...(aiResults ?? {}), client_session_id: clientSessionId },
         followup_question: asked?.question ?? null,
         followup_field: asked?.field ?? null,
         followup_answer: asked?.answer ?? null,
         followup_skipped: asked !== null && asked.answer === null,
-        voice_recording_id: voiceRecordingId,
+        input_mode: voiceResult ? 'voice' : 'text',
+        voice_transcript: voiceResult?.transcript ?? null,
+        transcript_language: voiceResult?.language ?? null,
+        transcript_english: voiceResult?.english_translation ?? null,
       });
-      setSubmittedWithVoice(
-        voiceRecordingId ? incident.voice_recording_id === voiceRecordingId : null
-      );
       setSubmittedCode(incident.report_code);
       setSubmittedToken(incident.tracking_token);
       toast('Emergency report submitted successfully', 'success');
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to submit report';
-      setReportDeliveryError(`${message}. The server did not confirm receipt, so do not assume rescuers have been notified.${voiceRecordingId ? ' The uploaded audio is retained on the server, but the report/audio association is unconfirmed.' : hasLocalAudio ? ' Your audio remains on this device only and was not included in the report.' : ''}`);
-      toast('Report receipt was not confirmed. Do not assume rescuers have been notified.', 'error');
+      toast(err instanceof Error ? err.message : 'Failed to submit report', 'error');
     }
   };
 
@@ -198,22 +275,6 @@ export function ReportPage() {
           <p className="text-sm text-neutral-600 mb-5">
             Save both values below. The private tracking key protects your report from unauthorized access.
           </p>
-          {voiceRecordingId && (
-            <p className={`mb-5 rounded-lg border p-3 text-left text-sm ${
-              submittedWithVoice
-                ? 'border-blue-200 bg-blue-50 text-blue-900'
-                : 'border-amber-200 bg-amber-50 text-amber-900'
-            }`}>
-              {submittedWithVoice
-                ? 'Your audio reference is attached to this report. Transcription may continue processing.'
-                : 'The report was received, but the reporting server did not confirm the audio reference. The recording remains on the server; do not assume coordinators can access it.'}
-            </p>
-          )}
-          {!voiceRecordingId && hasLocalAudio && (
-            <p className="mb-5 rounded-lg border border-amber-200 bg-amber-50 p-3 text-left text-sm text-amber-900">
-              Your report was received, but the audio is saved on this device only and was not sent to rescuers.
-            </p>
-          )}
 
           <div className="bg-neutral-50 border border-neutral-200 rounded-lg p-4 mb-5">
             <p className="text-xs text-neutral-500 mb-1">Your Report ID</p>
@@ -290,23 +351,6 @@ export function ReportPage() {
         </div>
 
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
-          {reportDeliveryError && (
-            <div className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-900" role="alert">
-              <AlertCircle size={18} className="mt-0.5 shrink-0" />
-              <span>{reportDeliveryError}</span>
-            </div>
-          )}
-          <VoiceRecorder
-            description={description || ''}
-            onTranscript={(transcript) => {
-              const existing = watch('description')?.trim();
-              setValue('description', existing ? `${existing}\n${transcript}` : transcript, { shouldValidate: true });
-            }}
-            onRecordingId={setVoiceRecordingId}
-            onUploadingChange={setVoiceUploading}
-            onLocalAudioSaved={() => setHasLocalAudio(true)}
-          />
-
           {/* Incident Type */}
           <div className="card card-body">
             <label className="label">Incident Type <span className="text-error">*</span></label>
@@ -344,11 +388,36 @@ export function ReportPage() {
                 AI Assist
               </button>
             </div>
+            <div className="mb-3 rounded-lg border border-neutral-200 bg-neutral-50 p-3">
+              <div className="flex flex-wrap items-center gap-2">
+                {!recording ? (
+                  <button type="button" className="btn-secondary btn-sm" onClick={() => void beginRecording()} disabled={transcribing || !isRecordingSupported()}>
+                    {transcribing ? <LoadingSpinner size={14} /> : <Mic size={14} />}
+                    {transcribing ? 'Transcribing…' : voiceResult ? 'Record again' : 'Speak in English or Urdu'}
+                  </button>
+                ) : (
+                  <button type="button" className="btn-danger btn-sm" onClick={() => void finishRecording()}>
+                    <Square size={13} /> Stop recording
+                  </button>
+                )}
+                {recording && <span className="text-xs font-medium text-red-600">Recording {Math.floor(recordingSeconds / 60)}:{String(recordingSeconds % 60).padStart(2, '0')} / 2:00</span>}
+                {voiceResult && <button type="button" className="btn-ghost btn-sm ml-auto" onClick={removeVoice}><Trash2 size={14} /> Remove voice</button>}
+              </div>
+              {!isRecordingSupported() && <p className="mt-2 text-xs text-neutral-500">Voice recording is not supported in this browser. Please type your report.</p>}
+              {voiceError && <p className="mt-2 text-xs text-error">{voiceError}</p>}
+              {voiceResult && (
+                <div className="mt-3 border-t border-neutral-200 pt-3">
+                  <p className="mb-1 text-xs font-medium text-neutral-500">Original transcript</p>
+                  <TranscriptText text={voiceResult.transcript} language={voiceResult.language} className="text-sm text-neutral-800" />
+                  {voiceResult.language !== 'en' && <p className="mt-2 text-xs text-neutral-500">The editable description below keeps your original words. Coordinators will also receive an English translation.</p>}
+                </div>
+              )}
+            </div>
             <textarea
               {...register('description')}
               rows={4}
               className="input resize-none"
-              placeholder="Describe what's happening. E.g., 'Water is entering our house, my elderly father cannot walk, and we are trapped upstairs.'"
+              placeholder="Type what is happening, or record a voice report in English or Urdu."
             />
             {errors.description && <p className="text-xs text-error mt-1">{errors.description.message}</p>}
             {aiError && (
@@ -426,13 +495,11 @@ export function ReportPage() {
             <Link to="/" className="btn-ghost">
               <ArrowLeft size={18} /> Cancel
             </Link>
-            <button type="submit" className="btn-primary btn-lg" disabled={createIncident.isPending || voiceUploading}>
+            <button type="submit" className="btn-primary btn-lg" disabled={createIncident.isPending}>
               {createIncident.isPending ? (
                 <>
                   <LoadingSpinner size={18} /> Submitting...
                 </>
-              ) : voiceUploading ? (
-                <>Uploading audio...</>
               ) : (
                 <>
                   Submit Report <ArrowRight size={18} />

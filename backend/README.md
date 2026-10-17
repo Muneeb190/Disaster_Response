@@ -1,6 +1,6 @@
 # ResQNet Backend
 
-The backend is fully managed by Supabase and contains PostgreSQL/PostGIS migrations, deterministic priority scoring, row-level security policies, Realtime configuration, RPC functions, fictional demo seed data, and the AI extraction Edge Function.
+The backend is fully managed by Supabase and contains PostgreSQL/PostGIS migrations, deterministic priority scoring, row-level security policies, Realtime configuration, RPC functions, and AI Edge Functions.
 
 ## Structure
 
@@ -21,6 +21,7 @@ npx supabase link --project-ref gzgdcmzxqlrvazawygtu
 npx supabase db push
 npx supabase functions deploy ai-extract --use-api
 npx supabase functions deploy transcriptions --use-api
+npx supabase functions deploy transcribe --use-api
 ```
 
 Before deploying voice transcription, add `GEMINI_API_KEY` in Supabase Dashboard → Edge Functions → Secrets. The Edge Function sends recordings to Gemini 3.8 Flash for verbatim transcription in the selected language. Never put the key into frontend code, a `VITE_` variable, or a committed file.
@@ -36,6 +37,22 @@ If the browser reports “Failed to send a request to the Edge Function,” rede
 `supabase/config.toml` identifies the intended project, but migrations and functions must be deployed to your Supabase project before the feature is available. `db push` applies migrations that have not yet been applied. Review and back up important hosted data before making schema changes.
 
 Never commit a personal access token, database password, or service-role key.
+
+## English and Urdu voice reports
+
+The public report form can record up to two minutes of speech. The `transcribe`
+Edge Function returns the original English/Urdu transcript, an English
+translation, and conservative structured incident facts. Configure Gemini and
+deploy the function before enabling this in production:
+
+```bash
+npx supabase secrets set GEMINI_API_KEY=your-key
+npx supabase functions deploy transcribe --use-api
+```
+
+`GEMINI_MODEL` is optional and defaults to `gemini-3.5-flash-lite`. Audio is sent to
+Gemini for transcription but is not stored by ResQNet; only transcript text,
+translation, language, and extracted facts are saved with the incident.
 
 ## Auth and role invitations
 

@@ -11,5 +11,9 @@ verify_jwt = false
 [functions.transcriptions]
 verify_jwt = false
 
+# Fahad's English/Urdu voice-agent transcription endpoint.
+[functions.transcribe]
+verify_jwt = false
+
 [functions.invite-role]
 verify_jwt = false
