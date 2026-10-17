@@ -2,12 +2,13 @@ import { useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import {
   ArrowLeft, ArrowRight, Check, X, AlertTriangle, RefreshCw, Siren, Users,
-  MapPin, Clock, FileText, Zap, AlertOctagon, ShieldCheck, PencilLine, CheckCircle2
+  MapPin, Clock, FileText, AlertOctagon, ShieldCheck, PencilLine, CheckCircle2, MessageCircleQuestion
 } from 'lucide-react';
 import { DashboardLayout } from '@/components/dashboard/DashboardLayout';
 import { MiniMap } from '@/components/map/IncidentMap';
 import { IncidentTimeline } from '@/components/incident/IncidentTimeline';
 import { SuitableShelters } from '@/components/incident/SuitableShelters';
+import { WhyPriorityPanel, ConfidenceBadge, ConfidencePanel, UrgentCheckBadge } from '@/components/incident/PriorityPanels';
 import { DemoBadge, PriorityBadge, StatusBadge, VerificationBadge, TriStateBadge, TeamStatusBadge, AssignmentStatusBadge } from '@/components/ui/Badges';
 import { Modal, ConfirmDialog, ReasonDialog } from '@/components/ui/Modal';
 import { Skeleton, EmptyState, LoadingSpinner, ErrorState } from '@/components/ui/States';
@@ -146,12 +147,14 @@ export function IncidentDetailPage() {
                   {inc.life_threatening ? <AlertOctagon size={24} className="text-red-600" /> : <Siren size={24} className="text-blue-600" />}
                 </div>
                 <div>
-                  <div className="flex items-center gap-2 mb-1">
+                  <div className="flex items-center gap-2 mb-1 flex-wrap">
                     <PriorityBadge level={inc.priority_level} />
                     <span className="text-lg font-bold text-neutral-800">{inc.priority_score}/100</span>
+                    <ConfidenceBadge level={inc.confidence_level} score={inc.confidence_score} />
+                    {inc.needs_urgent_check && <UrgentCheckBadge />}
                     {inc.is_demo && <DemoBadge />}
                   </div>
-                  <p className="text-xs text-neutral-400">Priority score — decision support only</p>
+                  <p className="text-xs text-neutral-400">Risk score — decision support only</p>
                 </div>
               </div>
               <div className="flex flex-col items-end gap-1">
@@ -160,19 +163,8 @@ export function IncidentDetailPage() {
               </div>
             </div>
 
-            {/* Priority reasons */}
-            <div className="bg-neutral-50 rounded-lg p-3 mb-3">
-              <p className="text-xs font-medium text-neutral-500 mb-2 flex items-center gap-1.5">
-                <Zap size={12} /> Priority Reasons
-              </p>
-              <ul className="space-y-1">
-                {inc.priority_reasons.map((reason, i) => (
-                  <li key={i} className="text-xs text-neutral-700 flex items-start gap-1.5">
-                    <span className="text-primary-500 mt-0.5">•</span>
-                    {reason}
-                  </li>
-                ))}
-              </ul>
+            <div className="mb-3">
+              <WhyPriorityPanel incident={inc} />
             </div>
 
             {inc.life_threatening && (
@@ -216,6 +208,19 @@ export function IncidentDetailPage() {
             {inc.area_landmark && (
               <div className="flex items-center gap-1.5 text-xs text-neutral-500 mt-3">
                 <MapPin size={14} /> {inc.area_landmark}
+              </div>
+            )}
+            {inc.followup_question && (
+              <div className="text-xs bg-neutral-50 rounded-lg p-2.5 mt-3 flex items-start gap-2">
+                <MessageCircleQuestion size={14} className="text-primary-600 flex-shrink-0 mt-0.5" />
+                <span>
+                  Follow-up asked: “{inc.followup_question}” —{' '}
+                  <strong>
+                    {inc.followup_skipped || !inc.followup_answer
+                      ? 'skipped by reporter'
+                      : inc.followup_answer === 'unknown' ? 'not sure' : inc.followup_answer}
+                  </strong>
+                </span>
               </div>
             )}
           </div>
@@ -345,6 +350,8 @@ export function IncidentDetailPage() {
               </div>
             </div>
           )}
+
+          <ConfidencePanel incident={inc} />
 
           {/* Verification controls */}
           <div className="card card-body">

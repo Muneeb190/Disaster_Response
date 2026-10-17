@@ -48,12 +48,13 @@ export function SituationReportPage() {
             <p className="text-xs text-neutral-500 mt-1">Generated {formatDateTime(facts.generated_at)} {localTimeZoneLabel()} from ResQNet records · covers the last {facts.period_hours} hours · automatically generated, check before acting on it</p>
           </header>
 
-          <section className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <section className="grid grid-cols-2 sm:grid-cols-3 gap-3">
             {[
               ['Open incidents', facts.incidents.open],
               ['Critical open', facts.incidents.critical_open],
               ['No team yet', facts.incidents.unassigned_open],
               ['Not yet verified', facts.incidents.unverified_open],
+              ['Need urgent check', facts.incidents.urgent_check_open ?? 0],
               [`Reported (${facts.period_hours}h)`, facts.incidents.reported_in_period],
               [`Resolved (${facts.period_hours}h)`, facts.incidents.resolved_in_period],
               ['Active assignments', facts.active_assignments],
@@ -68,7 +69,7 @@ export function SituationReportPage() {
                 <thead className="text-left text-neutral-500"><tr><th className="py-1">Code</th><th>Type</th><th>Area</th><th>Priority</th><th>Status</th><th>Reported</th></tr></thead>
                 <tbody className="divide-y divide-neutral-100">
                   {facts.urgent.map((i) => (
-                    <tr key={i.report_code}><td className="py-1.5 font-mono">{i.report_code}</td><td>{INCIDENT_TYPE_LABELS[i.type]}</td><td>{i.area_landmark || '—'}</td><td><PriorityBadge level={i.priority_level} /> {i.priority_score}{i.life_threatening ? ' · danger to life' : ''}</td><td>{STATUS_LABELS[i.status]}{i.verification_status === 'pending' ? ' · unverified' : ''}</td><td>{timeAgo(i.created_at)}</td></tr>
+                    <tr key={i.report_code}><td className="py-1.5 font-mono">{i.report_code}</td><td>{INCIDENT_TYPE_LABELS[i.type]}</td><td>{i.area_landmark || '—'}</td><td><PriorityBadge level={i.priority_level} /> {i.priority_score}{i.life_threatening ? ' · danger to life' : ''}</td><td>{STATUS_LABELS[i.status]}{i.verification_status === 'pending' ? ' · unverified' : ''}{i.needs_urgent_check ? ' · urgent check' : ''}</td><td>{timeAgo(i.created_at)}</td></tr>
                   ))}
                 </tbody>
               </table>

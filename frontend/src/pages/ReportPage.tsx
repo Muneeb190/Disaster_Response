@@ -3,11 +3,13 @@ import { Link } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { Radio, ArrowLeft, ArrowRight, Check, Copy, MapPin, Sparkles, AlertCircle, Search } from 'lucide-react';
+import { Radio, ArrowLeft, ArrowRight, Check, Copy, MapPin, Sparkles, AlertCircle, Search, MessageCircleQuestion } from 'lucide-react';
 import { LocationPicker } from '@/components/map/IncidentMap';
 import { useCreateIncident } from '@/hooks/useData';
 import { useToast } from '@/components/ui/toast-context';
 import { LoadingSpinner } from '@/components/ui/States';
+import { Modal } from '@/components/ui/Modal';
+import { pickFollowupQuestion, type FollowupQuestion } from '@/lib/followup';
 import type { IncidentType, TriState } from '@/types';
 
 const schema = z.object({
@@ -48,6 +50,8 @@ export function ReportPage() {
   const [aiExtracting, setAiExtracting] = useState(false);
   const [aiError, setAiError] = useState<string | null>(null);
   const [aiResults, setAiResults] = useState<Record<string, unknown> | null>(null);
+  // Feature 12: at most one follow-up question, always skippable.
+  const [followup, setFollowup] = useState<{ q: FollowupQuestion; data: FormData } | null>(null);
 
   const {
     register,
@@ -94,18 +98,9 @@ export function ReportPage() {
       setAiResults(data);
       toast('AI analysis complete. Review and confirm the extracted fields.', 'success');
 
-      // Pre-fill form fields from AI results (user can still edit)
-      if (data.people_trapped && data.people_trapped !== 'null') {
-        setValue('people_trapped', data.people_trapped);
-      }
-      if (data.injuries_reported && data.injuries_reported !== 'null') {
-        setValue('injuries_reported', data.injuries_reported);
-      }
-      if (data.vulnerable_people && data.vulnerable_people !== 'null') {
-        setValue('vulnerable_people', data.vulnerable_people);
-      }
-      if (data.danger_increasing && data.danger_increasing !== 'null') {
-        setValue('danger_increasing', data.danger_increasing);
+      // Pre-fill form fields from AI results (user can still edit). "Unknown" never overwrites an answer.
+      for (const field of ['people_trapped', 'injuries_reported', 'vulnerable_people', 'danger_increasing'] as const) {
+        if (data[field] === 'yes' || data[field] === 'no') setValue(field, data[field]);
       }
       if (data.incident_category) {
         const cat = data.incident_category as IncidentType;
@@ -124,11 +119,30 @@ export function ReportPage() {
     }
   };
 
-  const onSubmit = async (data: FormData) => {
+  const onSubmit = (data: FormData) => {
     if (!coords) {
       toast('Please pin your location on the map', 'error');
       return;
     }
+    const q = pickFollowupQuestion(data.type, data);
+    if (q) {
+      setFollowup({ q, data });
+      return;
+    }
+    void submitReport(data, null);
+  };
+
+  // answer === null means the reporter skipped the question; the report is still sent.
+  const answerFollowup = (answer: TriState | null) => {
+    if (!followup) return;
+    const { q, data } = followup;
+    setFollowup(null);
+    if (answer) setValue(q.field, answer);
+    void submitReport(answer ? { ...data, [q.field]: answer } : data, { question: q.question, field: q.field, answer });
+  };
+
+  const submitReport = async (data: FormData, asked: { question: string; field: string; answer: TriState | null } | null) => {
+    if (!coords) return;
     try {
       const incident = await createIncident.mutateAsync({
         type: data.type,
@@ -143,6 +157,11 @@ export function ReportPage() {
         longitude: coords.lng,
         reporter_name: data.reporter_name,
         reporter_phone: data.reporter_phone,
+        ai_extracted: aiResults,
+        followup_question: asked?.question ?? null,
+        followup_field: asked?.field ?? null,
+        followup_answer: asked?.answer ?? null,
+        followup_skipped: asked !== null && asked.answer === null,
       });
       setSubmittedCode(incident.report_code);
       setSubmittedToken(incident.tracking_token);
@@ -376,6 +395,25 @@ export function ReportPage() {
           </div>
         </form>
       </main>
+
+      <Modal open={!!followup} onClose={() => answerFollowup(null)} title="One quick question" size="sm">
+        {followup && (
+          <div>
+            <p className="text-base font-medium text-neutral-800 mb-4 flex items-start gap-2">
+              <MessageCircleQuestion size={20} className="text-primary-600 flex-shrink-0 mt-0.5" />
+              {followup.q.question}
+            </p>
+            <div className="grid grid-cols-3 gap-2 mb-4">
+              <button type="button" className="btn-danger btn-lg" onClick={() => answerFollowup('yes')}>Yes</button>
+              <button type="button" className="btn-secondary btn-lg" onClick={() => answerFollowup('no')}>No</button>
+              <button type="button" className="btn-secondary btn-lg" onClick={() => answerFollowup('unknown')}>Not sure</button>
+            </div>
+            <button type="button" className="btn-ghost w-full" onClick={() => answerFollowup(null)}>
+              Skip and send report now <ArrowRight size={16} />
+            </button>
+          </div>
+        )}
+      </Modal>
     </div>
   );
 }
