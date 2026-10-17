@@ -29,6 +29,12 @@ export interface CreateIncidentInput {
   reporter_phone?: string;
 }
 
+export interface CreateIncidentResult {
+  id: string;
+  report_code: string;
+  tracking_token: string;
+}
+
 export interface DashboardSummary {
   openIncidents: number;
   criticalIncidents: number;
@@ -81,15 +87,14 @@ export function useIncident(id: string) {
   });
 }
 
-export function useIncidentByReportCode(reportCode: string) {
+export function useIncidentByReportCode(reportCode: string, trackingToken = '') {
   return useQuery({
-    queryKey: ['incident-by-code', reportCode],
+    queryKey: ['incident-by-code', reportCode, trackingToken],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('incidents')
-        .select('*')
-        .eq('report_code', reportCode.toUpperCase())
-        .maybeSingle();
+      const { data, error } = await supabase.rpc('get_public_incident_status', {
+        p_report_code: reportCode.toUpperCase(),
+        p_tracking_token: trackingToken || null,
+      });
       if (error) throw error;
       return data as Incident | null;
     },
@@ -101,25 +106,22 @@ export function useCreateIncident() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (input: CreateIncidentInput) => {
-      const { data, error } = await supabase
-        .from('incidents')
-        .insert({
-          type: input.type,
-          description: input.description,
-          area_landmark: input.area_landmark || null,
-          people_affected: input.people_affected,
-          people_trapped: input.people_trapped,
-          injuries_reported: input.injuries_reported,
-          vulnerable_people: input.vulnerable_people,
-          danger_increasing: input.danger_increasing,
-          location: `POINT(${input.longitude} ${input.latitude})`,
-          reporter_name: input.reporter_name || null,
-          reporter_phone: input.reporter_phone || null,
-        })
-        .select()
-        .single();
+      const { data, error } = await supabase.rpc('submit_public_incident', {
+        p_type: input.type,
+        p_description: input.description,
+        p_area_landmark: input.area_landmark || null,
+        p_people_affected: input.people_affected,
+        p_people_trapped: input.people_trapped,
+        p_injuries_reported: input.injuries_reported,
+        p_vulnerable_people: input.vulnerable_people,
+        p_danger_increasing: input.danger_increasing,
+        p_latitude: input.latitude,
+        p_longitude: input.longitude,
+        p_reporter_name: input.reporter_name || null,
+        p_reporter_phone: input.reporter_phone || null,
+      });
       if (error) throw error;
-      return data as Incident;
+      return data as CreateIncidentResult;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['incidents'] });

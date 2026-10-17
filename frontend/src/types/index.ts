@@ -32,6 +32,9 @@ export interface Incident {
   ai_extracted: Record<string, unknown> | null;
   coordinator_notes: string | null;
   photo_url: string | null;
+  reporter_user_id?: string | null;
+  is_demo?: boolean;
+  data_source?: string;
   created_at: string;
   updated_at: string;
 }

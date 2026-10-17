@@ -1,7 +1,9 @@
 import { Link } from 'react-router-dom';
 import { Radio, Siren, ShieldAlert, ArrowRight, Search, Activity, MapPin, Users, Clock } from 'lucide-react';
+import { useAuth } from '@/auth/AuthContext';
 
 export function HomePage() {
+  const auth = useAuth();
   return (
     <div className="min-h-screen bg-neutral-50">
       {/* Header */}
@@ -16,9 +18,9 @@ export function HomePage() {
               <p className="text-[10px] text-neutral-400 uppercase tracking-widest">Disaster Response Platform</p>
             </div>
           </div>
-          <Link to="/dashboard" className="btn-ghost btn-sm">
+          <Link to={auth.user ? '/portal' : '/login'} className="btn-ghost btn-sm">
             <ShieldAlert size={16} />
-            Coordinator Dashboard
+            {auth.user ? 'My Workspaces' : 'Sign In'}
           </Link>
         </div>
       </header>
@@ -108,8 +110,8 @@ export function HomePage() {
       <footer className="bg-white border-t border-neutral-200 mt-8">
         <div className="max-w-5xl mx-auto px-6 py-4 flex flex-col sm:flex-row items-center justify-between gap-2">
           <p className="text-xs text-neutral-400">ResQNet — Hackathon Demo Project</p>
-          <Link to="/dashboard" className="text-xs text-primary-600 hover:underline flex items-center gap-1">
-            Coordinator Dashboard <ArrowRight size={12} />
+          <Link to={auth.user ? '/portal' : '/signup'} className="text-xs text-primary-600 hover:underline flex items-center gap-1">
+            {auth.user ? 'Open Workspaces' : 'Create Account'} <ArrowRight size={12} />
           </Link>
         </div>
       </footer>
