@@ -58,7 +58,7 @@ export function IncidentTimeline({ incidentId }: { incidentId: string }) {
               <li key={event.id} className="ml-4 text-xs">
                 <span className={`absolute -left-[5px] mt-1 w-2.5 h-2.5 rounded-full ${DOT[event.event_type] ?? 'bg-neutral-400'}`} />
                 <p className="text-neutral-800 font-medium">{describe(event)}</p>
-                {event.reason && <p className="text-neutral-500 mt-0.5">“{event.reason}”</p>}
+                {event.reason && event.event_type !== 'reported' && <p className="text-neutral-500 mt-0.5">“{event.reason}”</p>}
                 <p className="text-[10px] text-neutral-400 mt-0.5" title={formatDateTime(event.created_at)}>
                   {event.profiles ? event.profiles.full_name || event.profiles.email : event.actor_user_id ? 'Unknown user' : 'System'} · {timeAgo(event.created_at)}
                 </p>

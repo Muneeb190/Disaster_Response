@@ -13,6 +13,8 @@ export function useRealtimeSync(): RealtimeStatus {
   useEffect(() => {
     if (mounted.current) return;
     mounted.current = true;
+    // A removed channel still reports CLOSED; it must not overwrite the live channel's state.
+    let active = true;
 
     const channel = supabase
       .channel('resqnet-realtime')
@@ -48,10 +50,12 @@ export function useRealtimeSync(): RealtimeStatus {
         qc.invalidateQueries({ queryKey: ['incident-events'] });
       })
       .subscribe((state) => {
+        if (!active) return;
         setStatus(state === 'SUBSCRIBED' ? 'live' : state === 'CLOSED' || state === 'CHANNEL_ERROR' || state === 'TIMED_OUT' ? 'offline' : 'connecting');
       });
 
     return () => {
+      active = false;
       supabase.removeChannel(channel);
       mounted.current = false;
     };

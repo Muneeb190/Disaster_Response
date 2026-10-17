@@ -9,12 +9,14 @@ function useOperationPoints() {
   const incidents = useIncidents({ limit: 500 });
   const teams = useTeams();
   const shelters = useShelters();
-  const points = useMemo(() => [
+  const loading = incidents.isLoading || teams.isLoading || shelters.isLoading;
+  // Wait for all three so the area isn't computed (and geocoded) from partial data.
+  const points = useMemo(() => (loading ? [] : [
     ...(incidents.data ?? []).filter((i) => !['resolved', 'cancelled'].includes(i.status)).map((i) => parseLocation(i.location)),
     ...(teams.data ?? []).map((t) => parseLocation(t.location)),
     ...(shelters.data ?? []).map((s) => parseLocation(s.location)),
-  ].filter((p): p is LatLng => !!p), [incidents.data, teams.data, shelters.data]);
-  return { points, loading: incidents.isLoading || teams.isLoading || shelters.isLoading };
+  ].filter((p): p is LatLng => !!p)), [loading, incidents.data, teams.data, shelters.data]);
+  return { points, loading };
 }
 
 // Centre of current operations, used to open location pickers in the right place.
