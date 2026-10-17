@@ -1,5 +1,11 @@
 project_id = "gzgdcmzxqlrvazawygtu"
 
+[auth]
+additional_redirect_urls = [
+  "https://disaster-response-gray.vercel.app/**",
+  "https://disaster-response-git-muneeb-muneeb-ahmed-khans-projects.vercel.app/**",
+]
+
 [functions.ai-extract]
 verify_jwt = false
 
