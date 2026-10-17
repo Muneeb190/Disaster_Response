@@ -1,7 +1,8 @@
 import { NavLink, useLocation } from 'react-router-dom';
-import { LayoutDashboard, ListFilter, Activity, Radio, Map, RadioTower, House, MessageSquare, FileText, Bell, ChevronDown, HelpCircle } from 'lucide-react';
+import { LayoutDashboard, ListFilter, Activity, Radio, Map, RadioTower, House, MessageSquare, FileText, Bell, ChevronDown, HelpCircle, UserCog, LogOut } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useRealtimeSync } from '@/hooks/useRealtime';
+import { useAuth } from '@/auth/AuthContext';
 
 const navItems = [
   { to: '/dashboard', label: 'Overview', icon: LayoutDashboard },
@@ -11,6 +12,7 @@ const navItems = [
   { to: '/resources', label: 'Shelters', icon: House },
   { to: '/assignments', label: 'Communications', icon: MessageSquare },
   { to: '/incidents', label: 'Reports', icon: FileText },
+  { to: '/admin/users', label: 'Users & roles', icon: UserCog },
 ];
 
 export function DashboardSidebar() {
@@ -60,6 +62,8 @@ export function DashboardSidebar() {
 }
 
 export function DashboardTopBar({ title, subtitle, children }: { title: string; subtitle?: string; children?: React.ReactNode }) {
+  const auth = useAuth();
+  const initials = (auth.profile?.full_name || auth.profile?.email || 'Admin').split(/\s+/).map((part) => part[0]).join('').slice(0, 2).toUpperCase();
   return (
     <header className="command-topbar">
       <div className="flex items-center gap-4 min-w-0">
@@ -75,7 +79,8 @@ export function DashboardTopBar({ title, subtitle, children }: { title: string; 
         <span className="command-operational"><span /> Systems operational</span>
         <Bell size={17} className="text-slate-600" />
         <span className="command-divider hidden md:block" />
-        <div className="command-user"><span>AM</span><strong>A. Martinez</strong><ChevronDown size={13} /></div>
+        <div className="command-user"><span>{initials}</span><strong>{auth.profile?.full_name || 'Administrator'}</strong></div>
+        <button className="text-slate-500 hover:text-slate-800" title="Sign out" onClick={() => void auth.signOut()}><LogOut size={16} /></button>
       </div>
       <span className="sr-only">{title} {subtitle}</span>
     </header>

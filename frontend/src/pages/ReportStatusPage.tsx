@@ -6,12 +6,15 @@ import { PriorityBadge, StatusBadge, VerificationBadge, TriStateBadge } from '@/
 import { INCIDENT_TYPE_LABELS } from '@/types';
 import { LoadingSpinner, EmptyState } from '@/components/ui/States';
 import { timeAgo, formatDateTime } from '@/lib/utils';
+import { useAuth } from '@/auth/AuthContext';
 
 export function ReportStatusPage() {
+  const auth = useAuth();
   const [code, setCode] = useState('');
+  const [trackingToken, setTrackingToken] = useState('');
   const [searched, setSearched] = useState(false);
 
-  const { data: incident, isFetching } = useIncidentByReportCode(searched ? code : '');
+  const { data: incident, isFetching } = useIncidentByReportCode(searched ? code : '', searched ? trackingToken : '');
 
   return (
     <div className="min-h-screen bg-neutral-50">
@@ -31,24 +34,30 @@ export function ReportStatusPage() {
 
       <main className="max-w-2xl mx-auto px-6 py-8">
         <h1 className="text-2xl font-bold text-neutral-800 mb-1">Check Report Status</h1>
-        <p className="text-sm text-neutral-500 mb-6">Enter your report ID to see the current status.</p>
+        <p className="text-sm text-neutral-500 mb-6">Enter your report ID and private tracking key. Signed-in users can open reports submitted from their account without the key.</p>
 
         {/* Search */}
         <div className="card card-body mb-6">
-          <div className="flex gap-2">
+          <div className="space-y-3">
             <input
-              className="input flex-1"
+              className="input"
               placeholder="e.g., RN-000001"
               value={code}
               onChange={(e) => setCode(e.target.value.toUpperCase())}
               onKeyDown={(e) => {
-                if (e.key === 'Enter' && code.trim()) setSearched(true);
+                if (e.key === 'Enter' && code.trim() && (trackingToken.trim() || auth.user)) setSearched(true);
               }}
             />
+            <input
+              className="input"
+              placeholder="Private tracking key"
+              value={trackingToken}
+              onChange={(e) => setTrackingToken(e.target.value.trim())}
+            />
             <button
-              className="btn-primary"
+              className="btn-primary w-full justify-center"
               onClick={() => setSearched(true)}
-              disabled={!code.trim() || isFetching}
+              disabled={!code.trim() || (!trackingToken.trim() && !auth.user) || isFetching}
             >
               {isFetching ? <LoadingSpinner size={16} /> : <Search size={18} />}
               Search

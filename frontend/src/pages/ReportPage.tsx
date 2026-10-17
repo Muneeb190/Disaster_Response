@@ -44,6 +44,7 @@ export function ReportPage() {
   const createIncident = useCreateIncident();
   const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [submittedCode, setSubmittedCode] = useState<string | null>(null);
+  const [submittedToken, setSubmittedToken] = useState<string | null>(null);
   const [aiExtracting, setAiExtracting] = useState(false);
   const [aiError, setAiError] = useState<string | null>(null);
   const [aiResults, setAiResults] = useState<Record<string, unknown> | null>(null);
@@ -144,6 +145,7 @@ export function ReportPage() {
         reporter_phone: data.reporter_phone,
       });
       setSubmittedCode(incident.report_code);
+      setSubmittedToken(incident.tracking_token);
       toast('Emergency report submitted successfully', 'success');
     } catch (err) {
       toast(err instanceof Error ? err.message : 'Failed to submit report', 'error');
@@ -163,7 +165,7 @@ export function ReportPage() {
             Your emergency report has been received and is now visible to coordinators.
           </p>
           <p className="text-sm text-neutral-600 mb-5">
-            Save your report ID to check the status later.
+            Save both values below. The private tracking key protects your report from unauthorized access.
           </p>
 
           <div className="bg-neutral-50 border border-neutral-200 rounded-lg p-4 mb-5">
@@ -175,6 +177,22 @@ export function ReportPage() {
                 onClick={() => {
                   navigator.clipboard.writeText(submittedCode);
                   toast('Report ID copied', 'success');
+                }}
+              >
+                <Copy size={16} />
+              </button>
+            </div>
+          </div>
+
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-5">
+            <p className="text-xs text-blue-600 mb-1">Private Tracking Key</p>
+            <div className="flex items-center justify-center gap-2">
+              <code className="text-sm font-bold text-blue-800 break-all">{submittedToken}</code>
+              <button
+                className="btn-ghost btn-sm p-1.5"
+                onClick={() => {
+                  if (submittedToken) navigator.clipboard.writeText(submittedToken);
+                  toast('Tracking key copied', 'success');
                 }}
               >
                 <Copy size={16} />

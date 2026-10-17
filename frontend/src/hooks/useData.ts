@@ -29,6 +29,12 @@ export interface CreateIncidentInput {
   reporter_phone?: string;
 }
 
+export interface CreateIncidentResult {
+  id: string;
+  report_code: string;
+  tracking_token: string;
+}
+
 export interface DashboardSummary {
   openIncidents: number;
   criticalIncidents: number;
@@ -72,10 +78,22 @@ export function useIncident(id: string) {
   });
 }
 
-export function useIncidentByReportCode(reportCode: string) {
+export function useIncidentByReportCode(reportCode: string, trackingToken = '') {
   return useQuery({
+<<<<<<< HEAD
     queryKey: ['incident-by-code', reportCode],
     queryFn: () => api.get<Incident | null>(`/api/incidents/by-code/${encodeURIComponent(reportCode.toUpperCase())}`),
+=======
+    queryKey: ['incident-by-code', reportCode, trackingToken],
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc('get_public_incident_status', {
+        p_report_code: reportCode.toUpperCase(),
+        p_tracking_token: trackingToken || null,
+      });
+      if (error) throw error;
+      return data as Incident | null;
+    },
+>>>>>>> 6b3bc4bd83450019939bad6d2ed7f75f2d766385
     enabled: !!reportCode,
   });
 }
@@ -83,6 +101,7 @@ export function useIncidentByReportCode(reportCode: string) {
 export function useCreateIncident() {
   const queryClient = useQueryClient();
   return useMutation({
+<<<<<<< HEAD
     mutationFn: (input: CreateIncidentInput) =>
       api.post<Incident>('/api/incidents', {
         type: input.type,
@@ -98,6 +117,26 @@ export function useCreateIncident() {
         reporter_name: input.reporter_name || null,
         reporter_phone: input.reporter_phone || null,
       }),
+=======
+    mutationFn: async (input: CreateIncidentInput) => {
+      const { data, error } = await supabase.rpc('submit_public_incident', {
+        p_type: input.type,
+        p_description: input.description,
+        p_area_landmark: input.area_landmark || null,
+        p_people_affected: input.people_affected,
+        p_people_trapped: input.people_trapped,
+        p_injuries_reported: input.injuries_reported,
+        p_vulnerable_people: input.vulnerable_people,
+        p_danger_increasing: input.danger_increasing,
+        p_latitude: input.latitude,
+        p_longitude: input.longitude,
+        p_reporter_name: input.reporter_name || null,
+        p_reporter_phone: input.reporter_phone || null,
+      });
+      if (error) throw error;
+      return data as CreateIncidentResult;
+    },
+>>>>>>> 6b3bc4bd83450019939bad6d2ed7f75f2d766385
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['incidents'] });
       queryClient.invalidateQueries({ queryKey: ['dashboard-summary'] });
