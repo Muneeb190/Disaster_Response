@@ -37,7 +37,42 @@ export interface Incident {
   data_source?: string;
   created_at: string;
   updated_at: string;
+  // Feature 12: follow-up question
+  followup_question: string | null;
+  followup_field: string | null;
+  followup_answer: TriState | null;
+  followup_skipped: boolean;
+  // Feature 13: risk score with reasons
+  risk_factors: RiskFactor[];
+  // Feature 14: information confidence
+  confidence_score: number;
+  confidence_level: ConfidenceLevel;
+  confidence_reasons: ConfidenceReason[];
+  matching_report_count: number;
+  needs_urgent_check: boolean;
 }
+
+export type ConfidenceLevel = 'high' | 'medium' | 'low';
+export type FactStatus = 'reported' | 'followup' | 'unknown';
+
+export interface RiskFactor {
+  key: string;
+  label: string;
+  points: number;
+  status: FactStatus;
+  detail: string | null;
+}
+
+export interface ConfidenceReason {
+  label: string;
+  delta: number;
+}
+
+export const FACT_STATUS_LABELS: Record<FactStatus, string> = {
+  reported: 'Reported',
+  followup: 'Answered in follow-up',
+  unknown: 'Not yet known',
+};
 
 export interface RescueTeam {
   id: string;

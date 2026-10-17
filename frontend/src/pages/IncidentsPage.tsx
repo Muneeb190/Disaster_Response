@@ -5,6 +5,8 @@ import { DashboardLayout } from '@/components/dashboard/DashboardLayout';
 import { PriorityBadge, StatusBadge, VerificationBadge } from '@/components/ui/Badges';
 import { Skeleton, EmptyState } from '@/components/ui/States';
 import { useIncidents } from '@/hooks/useData';
+import { ConfidenceBadge, UrgentCheckBadge } from '@/components/incident/PriorityPanels';
+import { topReasons } from '@/lib/triage';
 import { INCIDENT_TYPE_LABELS, type IncidentType, type IncidentStatus, type PriorityLevel, type VerificationStatus } from '@/types';
 import { timeAgo } from '@/lib/utils';
 
@@ -103,7 +105,8 @@ export function IncidentsPage() {
                 <tr className="text-left text-xs text-neutral-500 uppercase tracking-wide">
                   <th className="px-4 py-3 font-medium">Report Code</th>
                   <th className="px-4 py-3 font-medium">Type</th>
-                  <th className="px-4 py-3 font-medium">Priority</th>
+                  <th className="px-4 py-3 font-medium">Priority &amp; why</th>
+                  <th className="px-4 py-3 font-medium">Confidence</th>
                   <th className="px-4 py-3 font-medium">Status</th>
                   <th className="px-4 py-3 font-medium">Verification</th>
                   <th className="px-4 py-3 font-medium">People</th>
@@ -119,10 +122,19 @@ export function IncidentsPage() {
                       <code className="text-xs font-bold text-primary-700">{inc.report_code}</code>
                     </td>
                     <td className="px-4 py-3 text-xs text-neutral-600">{INCIDENT_TYPE_LABELS[inc.type]}</td>
-                    <td className="px-4 py-3">
+                    <td className="px-4 py-3 max-w-[260px]">
                       <div className="flex items-center gap-1.5">
                         <PriorityBadge level={inc.priority_level} />
                         <span className="text-xs text-neutral-400">{inc.priority_score}</span>
+                      </div>
+                      {topReasons(inc.risk_factors).length > 0 && (
+                        <p className="text-[11px] text-neutral-500 mt-0.5 truncate">{topReasons(inc.risk_factors).join(' · ')}</p>
+                      )}
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex flex-col items-start gap-1">
+                        <ConfidenceBadge level={inc.confidence_level ?? 'low'} />
+                        {inc.needs_urgent_check && <UrgentCheckBadge />}
                       </div>
                     </td>
                     <td className="px-4 py-3"><StatusBadge status={inc.status} /></td>

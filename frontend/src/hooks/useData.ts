@@ -27,6 +27,11 @@ export interface CreateIncidentInput {
   longitude: number;
   reporter_name?: string;
   reporter_phone?: string;
+  ai_extracted?: Record<string, unknown> | null;
+  followup_question?: string | null;
+  followup_field?: string | null;
+  followup_answer?: TriState | null;
+  followup_skipped?: boolean;
 }
 
 export interface CreateIncidentResult {
@@ -119,6 +124,11 @@ export function useCreateIncident() {
         p_longitude: input.longitude,
         p_reporter_name: input.reporter_name || null,
         p_reporter_phone: input.reporter_phone || null,
+        p_ai_extracted: input.ai_extracted ?? null,
+        p_followup_question: input.followup_question ?? null,
+        p_followup_field: input.followup_field ?? null,
+        p_followup_answer: input.followup_answer ?? null,
+        p_followup_skipped: input.followup_skipped ?? false,
       });
       if (error) throw error;
       return data as CreateIncidentResult;
@@ -157,7 +167,8 @@ export function useRecalculatePriority() {
         p_actor: 'coordinator',
       });
       if (error) throw error;
-      return data as unknown as RecalculateResult;
+      // The RPC returns a one-row table.
+      return (Array.isArray(data) ? data[0] : data) as RecalculateResult;
     },
     onSuccess: (_, incidentId) => {
       queryClient.invalidateQueries({ queryKey: ['incident', incidentId] });
