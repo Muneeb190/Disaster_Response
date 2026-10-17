@@ -8,5 +8,8 @@ additional_redirect_urls = [
 [functions.ai-extract]
 verify_jwt = false
 
+[functions.transcriptions]
+verify_jwt = false
+
 [functions.invite-role]
 verify_jwt = false

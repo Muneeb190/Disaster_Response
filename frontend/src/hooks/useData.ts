@@ -36,12 +36,14 @@ export interface CreateIncidentInput {
   followup_field?: string | null;
   followup_answer?: TriState | null;
   followup_skipped?: boolean;
+  voice_recording_id?: string | null;
 }
 
 export interface CreateIncidentResult {
   id: string;
   report_code: string;
   tracking_token: string;
+  voice_recording_id?: string | null;
 }
 
 export interface DashboardSummary {
@@ -134,6 +136,7 @@ export function useCreateIncident() {
         p_followup_field: input.followup_field ?? null,
         p_followup_answer: input.followup_answer ?? null,
         p_followup_skipped: input.followup_skipped ?? false,
+        p_voice_recording_id: input.voice_recording_id || null,
       });
       if (error) throw error;
       return data as CreateIncidentResult;

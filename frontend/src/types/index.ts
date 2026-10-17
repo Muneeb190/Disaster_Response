@@ -29,6 +29,7 @@ export interface Incident {
   assigned_team_id: string | null;
   reporter_name: string | null;
   reporter_phone: string | null;
+  voice_recording_id?: string | null;
   ai_extracted: Record<string, unknown> | null;
   coordinator_notes: string | null;
   photo_url: string | null;
