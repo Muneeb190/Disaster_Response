@@ -46,7 +46,6 @@ begin
   return jsonb_build_object('role', invitation.role, 'team_id', invitation.team_id);
 end;
 $$;
-
 create or replace function public.admin_revoke_role(p_user_id uuid, p_role public.app_role, p_reason text default null)
 returns void
 language plpgsql
@@ -75,9 +74,7 @@ begin
     jsonb_build_object('role', p_role), nullif(trim(coalesce(p_reason, '')), ''));
 end;
 $$;
-
 revoke execute on function public.accept_role_invitation(text) from public, anon;
 grant execute on function public.accept_role_invitation(text) to authenticated;
 revoke execute on function public.admin_revoke_role(uuid,public.app_role,text) from public, anon;
 grant execute on function public.admin_revoke_role(uuid,public.app_role,text) to authenticated;
-

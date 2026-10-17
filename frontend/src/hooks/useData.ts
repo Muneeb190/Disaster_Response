@@ -12,6 +12,7 @@ import type {
   Resource,
   TeamRecommendation,
   TriState,
+  DuplicateCandidate,
 } from '@/types';
 
 export interface CreateIncidentInput {
@@ -32,6 +33,10 @@ export interface CreateIncidentInput {
   followup_field?: string | null;
   followup_answer?: TriState | null;
   followup_skipped?: boolean;
+  input_mode?: 'text' | 'voice';
+  voice_transcript?: string | null;
+  transcript_language?: import('@/types').TranscriptLanguage | null;
+  transcript_english?: string | null;
 }
 
 export interface CreateIncidentResult {
@@ -59,6 +64,7 @@ export function useIncidents(filters?: {
   status?: string;
   verification?: string;
   limit?: number;
+  includeLinked?: boolean;
 }) {
   return useQuery({
     queryKey: ['incidents', filters],
@@ -72,10 +78,74 @@ export function useIncidents(filters?: {
       if (filters?.priority) query = query.eq('priority_level', filters.priority);
       if (filters?.status) query = query.eq('status', filters.status);
       if (filters?.verification) query = query.eq('verification_status', filters.verification);
+      if (!filters?.includeLinked) query = query.is('primary_incident_id', null);
       if (filters?.limit) query = query.limit(filters.limit);
       const { data, error } = await query;
       if (error) throw error;
       return data as Incident[];
+    },
+  });
+}
+
+export function useDuplicateCandidates(incidentId: string) {
+  return useQuery({
+    queryKey: ['duplicate-candidates', incidentId],
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc('get_duplicate_candidates', { p_incident_id: incidentId });
+      if (error) throw error;
+      return data as unknown as DuplicateCandidate[];
+    },
+    enabled: !!incidentId,
+  });
+}
+
+export function useLinkedReports(primaryIncidentId: string) {
+  return useQuery({
+    queryKey: ['linked-reports', primaryIncidentId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('incidents')
+        .select('*')
+        .eq('primary_incident_id', primaryIncidentId)
+        .order('created_at', { ascending: true });
+      if (error) throw error;
+      return data as Incident[];
+    },
+    enabled: !!primaryIncidentId,
+  });
+}
+
+export function useLinkDuplicateReport() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ sourceIncidentId, primaryIncidentId }: { sourceIncidentId: string; primaryIncidentId: string }) => {
+      const { error } = await supabase.rpc('link_duplicate_report', {
+        p_source_incident_id: sourceIncidentId,
+        p_primary_incident_id: primaryIncidentId,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['incidents'] });
+      queryClient.invalidateQueries({ queryKey: ['incident'] });
+      queryClient.invalidateQueries({ queryKey: ['duplicate-candidates'] });
+      queryClient.invalidateQueries({ queryKey: ['linked-reports'] });
+    },
+  });
+}
+
+export function useUnlinkDuplicateReport() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (sourceIncidentId: string) => {
+      const { error } = await supabase.rpc('unlink_duplicate_report', { p_source_incident_id: sourceIncidentId });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['incidents'] });
+      queryClient.invalidateQueries({ queryKey: ['incident'] });
+      queryClient.invalidateQueries({ queryKey: ['duplicate-candidates'] });
+      queryClient.invalidateQueries({ queryKey: ['linked-reports'] });
     },
   });
 }
@@ -129,6 +199,10 @@ export function useCreateIncident() {
         p_followup_field: input.followup_field ?? null,
         p_followup_answer: input.followup_answer ?? null,
         p_followup_skipped: input.followup_skipped ?? false,
+        p_input_mode: input.input_mode ?? 'text',
+        p_voice_transcript: input.voice_transcript ?? null,
+        p_transcript_language: input.transcript_language ?? null,
+        p_transcript_english: input.transcript_english ?? null,
       });
       if (error) throw error;
       return data as CreateIncidentResult;

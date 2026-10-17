@@ -17,6 +17,7 @@ export function IncidentsPage() {
   const [priorityFilter, setPriorityFilter] = useState<string>('');
   const [statusFilter, setStatusFilter] = useState<string>('');
   const [verificationFilter, setVerificationFilter] = useState<string>('');
+  const [includeLinked, setIncludeLinked] = useState(false);
 
   const incidents = useIncidents({
     type: (typeFilter || undefined) as IncidentType | undefined,
@@ -24,6 +25,7 @@ export function IncidentsPage() {
     status: (statusFilter || undefined) as IncidentStatus | undefined,
     verification: (verificationFilter || undefined) as VerificationStatus | undefined,
     limit: 100,
+    includeLinked,
   });
 
   const filtered = (incidents.data ?? []).filter((inc) => {
@@ -81,6 +83,10 @@ export function IncidentsPage() {
             <option value="disputed">Disputed</option>
             <option value="flagged">Flagged</option>
           </select>
+          <label className="flex items-center gap-2 text-xs text-neutral-600 whitespace-nowrap">
+            <input type="checkbox" checked={includeLinked} onChange={(e) => setIncludeLinked(e.target.checked)} />
+            Show combined source reports
+          </label>
           {(typeFilter || priorityFilter || statusFilter || verificationFilter || search) && (
             <button
               className="btn-ghost btn-sm"
@@ -120,6 +126,7 @@ export function IncidentsPage() {
                   <tr key={inc.id} className="hover:bg-neutral-50 transition-colors cursor-pointer" onClick={() => navigate(`/incidents/${inc.id}`)}>
                     <td className="px-4 py-3">
                       <code className="text-xs font-bold text-primary-700">{inc.report_code}</code>
+                      {inc.primary_incident_id && <span className="block text-[10px] text-blue-600 mt-0.5">Combined source</span>}
                     </td>
                     <td className="px-4 py-3 text-xs text-neutral-600">{INCIDENT_TYPE_LABELS[inc.type]}</td>
                     <td className="px-4 py-3 max-w-[260px]">

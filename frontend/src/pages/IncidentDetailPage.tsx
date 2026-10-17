@@ -19,6 +19,9 @@ import {
 import { parseLocation, INCIDENT_TYPE_LABELS, STATUS_LABELS } from '@/types';
 import type { IncidentStatus, VerificationStatus } from '@/types';
 import { formatDateTime, timeAgo } from '@/lib/utils';
+import { TranscriptText } from '@/components/incident/TranscriptText';
+import { LANGUAGE_LABELS } from '@/types';
+import { DuplicateReportsPanel } from '@/components/incident/DuplicateReportsPanel';
 
 export function IncidentDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -216,6 +219,20 @@ export function IncidentDetailPage() {
               <FileText size={14} /> Description
             </h3>
             <p className="text-sm text-neutral-700 leading-relaxed">{inc.description}</p>
+            {inc.input_mode === 'voice' && inc.voice_transcript && (
+              <div className="mt-3 rounded-lg border border-blue-100 bg-blue-50 p-3">
+                <p className="mb-1 text-xs font-semibold text-blue-700">
+                  Original voice transcript{inc.transcript_language ? ` · ${LANGUAGE_LABELS[inc.transcript_language]}` : ''}
+                </p>
+                <TranscriptText text={inc.voice_transcript} language={inc.transcript_language} className="text-sm text-neutral-800" />
+                {inc.transcript_language !== 'en' && inc.transcript_english && (
+                  <div className="mt-3 border-t border-blue-100 pt-2">
+                    <p className="mb-1 text-xs font-medium text-blue-700">English translation</p>
+                    <p className="text-sm text-neutral-700">{inc.transcript_english}</p>
+                  </div>
+                )}
+              </div>
+            )}
             {inc.area_landmark && (
               <div className="flex items-center gap-1.5 text-xs text-neutral-500 mt-3">
                 <MapPin size={14} /> {inc.area_landmark}
@@ -235,6 +252,8 @@ export function IncidentDetailPage() {
               </div>
             )}
           </div>
+
+          <DuplicateReportsPanel incident={inc} />
 
           {/* Reported conditions */}
           <div className="card card-body">

@@ -50,6 +50,62 @@ export interface Incident {
   confidence_reasons: ConfidenceReason[];
   matching_report_count: number;
   needs_urgent_check: boolean;
+  // Feature 11: voice reports (English or Urdu)
+  input_mode: 'text' | 'voice';
+  voice_transcript: string | null;
+  transcript_language: TranscriptLanguage | null;
+  transcript_english: string | null;
+  // Features 15-16: duplicate detection and combined incidents
+  primary_incident_id: string | null;
+  linked_at: string | null;
+  linked_by: string | null;
+  corroboration_count: number;
+  corroboration_bonus: number;
+  enriched_from_report_ids: string[];
+}
+
+export interface DuplicateCandidate {
+  incident_id: string;
+  report_code: string;
+  type: IncidentType;
+  description: string;
+  area_landmark: string | null;
+  priority_level: PriorityLevel;
+  status: IncidentStatus;
+  created_at: string;
+  score: number;
+  distance_m: number;
+  time_difference_minutes: number;
+  description_similarity: number;
+  review_status: 'suggested' | 'unlinked';
+}
+
+export type TranscriptLanguage = 'en' | 'ur' | 'mixed' | 'other';
+
+export const LANGUAGE_LABELS: Record<TranscriptLanguage, string> = {
+  en: 'English',
+  ur: 'اردو · Urdu',
+  mixed: 'English + اردو',
+  other: 'Other language',
+};
+
+// Result of the transcribe Edge Function.
+export interface VoiceTranscription {
+  language: TranscriptLanguage;
+  transcript: string;
+  english_translation: string;
+  summary: string;
+  incident_category: IncidentType;
+  people_affected: number | null;
+  people_trapped: TriState;
+  injuries_reported: TriState;
+  vulnerable_people: TriState;
+  danger_increasing: TriState;
+  injury_details: string | null;
+  immediate_needs: string[];
+  uncertainties: string[];
+  source: 'gemini';
+  model: string;
 }
 
 export type ConfidenceLevel = 'high' | 'medium' | 'low';

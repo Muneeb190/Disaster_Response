@@ -32,7 +32,6 @@ alter table public.incidents
   add column if not exists confidence_reasons jsonb not null default '[]',
   add column if not exists matching_report_count int not null default 0,
   add column if not exists needs_urgent_check boolean not null default false;
-
 do $$ begin
   alter table public.incidents add constraint incidents_confidence_level_check check (confidence_level in ('high', 'medium', 'low'));
 exception when duplicate_object then null; end $$;
@@ -40,13 +39,11 @@ do $$ begin
   alter table public.incidents add constraint incidents_followup_field_check
     check (followup_field is null or followup_field in ('people_trapped', 'injuries_reported', 'vulnerable_people', 'danger_increasing'));
 exception when duplicate_object then null; end $$;
-
 -- ===================== HELPERS =====================
 create or replace function private.level_rank(l public.priority_level)
 returns int language sql immutable as $$
   select case l when 'critical' then 4 when 'high' then 3 when 'moderate' then 2 else 1 end;
 $$;
-
 -- Other open reports that look like the same event: within 500 m, 6 hours, same type.
 create or replace function private.matching_reports(i public.incidents)
 returns int language sql stable security definer set search_path = public, extensions as $$
@@ -58,7 +55,6 @@ returns int language sql stable security definer set search_path = public, exten
     and abs(extract(epoch from (o.created_at - i.created_at))) <= 6 * 3600
     and st_dwithin(o.location, i.location, 500);
 $$;
-
 -- ===================== ASSESSMENT =====================
 create or replace function private.assess_incident(i public.incidents)
 returns jsonb language plpgsql stable security definer set search_path = public, extensions as $$
@@ -194,7 +190,6 @@ begin
   );
 end;
 $$;
-
 -- ===================== TRIGGERS =====================
 create or replace function private.incident_assess_before_write()
 returns trigger language plpgsql security definer set search_path = public, extensions as $$
@@ -217,7 +212,6 @@ begin
   return new;
 end;
 $$;
-
 -- A new report is a new witness for matching reports nearby: refresh their confidence too.
 create or replace function private.incident_refresh_matches_after_insert()
 returns trigger language plpgsql security definer set search_path = public, extensions as $$
@@ -231,7 +225,6 @@ begin
   return null;
 end;
 $$;
-
 drop trigger if exists trg_incidents_insert_priority on public.incidents;
 drop function if exists public.incident_insert_priority();
 drop trigger if exists trg_incidents_assess on public.incidents;
@@ -240,7 +233,6 @@ create trigger trg_incidents_assess before insert or update on public.incidents
 drop trigger if exists trg_incidents_refresh_matches on public.incidents;
 create trigger trg_incidents_refresh_matches after insert on public.incidents
   for each row execute function private.incident_refresh_matches_after_insert();
-
 -- ===================== RECALCULATE =====================
 -- Same signature and result as before; the trigger now does the calculation.
 create or replace function public.recalculate_incident_priority(p_incident_id uuid, p_actor text default 'system')
@@ -272,10 +264,8 @@ begin
   return query select after_row.priority_score, after_row.priority_level, after_row.priority_reasons, after_row.life_threatening, esc;
 end;
 $$;
-
 -- ===================== PUBLIC SUBMISSION (adds follow-up fields) =====================
 drop function if exists public.submit_public_incident(public.incident_type,text,text,int,public.tri_state,public.tri_state,public.tri_state,public.tri_state,double precision,double precision,text,text);
-
 create or replace function public.submit_public_incident(
   p_type public.incident_type,
   p_description text,
@@ -338,9 +328,7 @@ begin
   );
 end;
 $$;
-
 revoke execute on function public.submit_public_incident(public.incident_type,text,text,int,public.tri_state,public.tri_state,public.tri_state,public.tri_state,double precision,double precision,text,text,jsonb,text,text,public.tri_state,boolean) from public;
 grant execute on function public.submit_public_incident(public.incident_type,text,text,int,public.tri_state,public.tri_state,public.tri_state,public.tri_state,double precision,double precision,text,text,jsonb,text,text,public.tri_state,boolean) to anon, authenticated;
-
 -- ===================== BACKFILL =====================
 update public.incidents set updated_at = updated_at;

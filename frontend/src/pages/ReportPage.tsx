@@ -1,16 +1,18 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { Radio, ArrowLeft, ArrowRight, Check, Copy, MapPin, Sparkles, AlertCircle, Search, MessageCircleQuestion } from 'lucide-react';
+import { Radio, ArrowLeft, ArrowRight, Check, Copy, MapPin, Sparkles, AlertCircle, Search, MessageCircleQuestion, Mic, Square, Trash2 } from 'lucide-react';
 import { LocationPicker } from '@/components/map/IncidentMap';
 import { useCreateIncident } from '@/hooks/useData';
 import { useToast } from '@/components/ui/toast-context';
 import { LoadingSpinner } from '@/components/ui/States';
 import { Modal } from '@/components/ui/Modal';
 import { pickFollowupQuestion, type FollowupQuestion } from '@/lib/followup';
-import type { IncidentType, TriState } from '@/types';
+import { isRecordingSupported, startRecording, toWavBase64, type Recording } from '@/lib/voiceRecorder';
+import { TranscriptText } from '@/components/incident/TranscriptText';
+import type { IncidentType, TriState, VoiceTranscription } from '@/types';
 
 const schema = z.object({
   type: z.enum(['flood', 'fire', 'medical_emergency', 'heatwave', 'other']),
@@ -52,6 +54,13 @@ export function ReportPage() {
   const [aiResults, setAiResults] = useState<Record<string, unknown> | null>(null);
   // Feature 12: at most one follow-up question, always skippable.
   const [followup, setFollowup] = useState<{ q: FollowupQuestion; data: FormData } | null>(null);
+  const [recording, setRecording] = useState(false);
+  const [recordingSeconds, setRecordingSeconds] = useState(0);
+  const [transcribing, setTranscribing] = useState(false);
+  const [voiceResult, setVoiceResult] = useState<VoiceTranscription | null>(null);
+  const [voiceError, setVoiceError] = useState<string | null>(null);
+  const recordingRef = useRef<Recording | null>(null);
+  const stoppingRef = useRef(false);
 
   const {
     register,
@@ -72,6 +81,80 @@ export function ReportPage() {
   });
 
   const description = watch('description');
+
+  useEffect(() => {
+    if (!recording) return;
+    const timer = window.setInterval(() => setRecordingSeconds((s) => s + 1), 1000);
+    return () => window.clearInterval(timer);
+  }, [recording]);
+
+  useEffect(() => () => recordingRef.current?.cancel(), []);
+
+  const applyVoiceResult = (result: VoiceTranscription) => {
+    setVoiceResult(result);
+    setValue('description', result.transcript, { shouldValidate: true });
+    setValue('type', result.incident_category);
+    if (result.people_affected !== null) setValue('people_affected', result.people_affected);
+    for (const field of ['people_trapped', 'injuries_reported', 'vulnerable_people', 'danger_increasing'] as const) {
+      if (result[field] !== 'unknown') setValue(field, result[field]);
+    }
+    setAiResults(result as unknown as Record<string, unknown>);
+  };
+
+  const finishRecording = async () => {
+    if (!recordingRef.current || stoppingRef.current) return;
+    stoppingRef.current = true;
+    const current = recordingRef.current;
+    recordingRef.current = null;
+    setRecording(false);
+    setTranscribing(true);
+    setVoiceError(null);
+    try {
+      const blob = await current.stop();
+      const audio = await toWavBase64(blob);
+      const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/transcribe`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY || import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+        },
+        body: JSON.stringify({ audio_base64: audio, mime_type: 'audio/wav' }),
+      });
+      const result = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(result.error || `Transcription failed (${res.status})`);
+      applyVoiceResult(result as VoiceTranscription);
+      toast('Voice report transcribed. Please review it before submitting.', 'success');
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Could not transcribe the recording';
+      setVoiceError(message);
+      toast(message, 'error');
+    } finally {
+      stoppingRef.current = false;
+      setTranscribing(false);
+    }
+  };
+
+  const beginRecording = async () => {
+    setVoiceError(null);
+    setVoiceResult(null);
+    setRecordingSeconds(0);
+    try {
+      recordingRef.current = await startRecording(() => void finishRecording());
+      setRecording(true);
+    } catch (err) {
+      setVoiceError(err instanceof Error && err.name === 'NotAllowedError'
+        ? 'Microphone permission was denied. Allow microphone access or type your report.'
+        : 'Could not access the microphone. You can still type your report.');
+    }
+  };
+
+  const removeVoice = () => {
+    recordingRef.current?.cancel();
+    recordingRef.current = null;
+    setRecording(false);
+    setVoiceResult(null);
+    setVoiceError(null);
+  };
 
   const handleAiExtract = async () => {
     if (!description || description.length < 10) {
@@ -144,6 +227,8 @@ export function ReportPage() {
   const submitReport = async (data: FormData, asked: { question: string; field: string; answer: TriState | null } | null) => {
     if (!coords) return;
     try {
+      const clientSessionId = localStorage.getItem('resqnet_reporter_session') || crypto.randomUUID();
+      localStorage.setItem('resqnet_reporter_session', clientSessionId);
       const incident = await createIncident.mutateAsync({
         type: data.type,
         description: data.description,
@@ -157,11 +242,15 @@ export function ReportPage() {
         longitude: coords.lng,
         reporter_name: data.reporter_name,
         reporter_phone: data.reporter_phone,
-        ai_extracted: aiResults,
+        ai_extracted: { ...(aiResults ?? {}), client_session_id: clientSessionId },
         followup_question: asked?.question ?? null,
         followup_field: asked?.field ?? null,
         followup_answer: asked?.answer ?? null,
         followup_skipped: asked !== null && asked.answer === null,
+        input_mode: voiceResult ? 'voice' : 'text',
+        voice_transcript: voiceResult?.transcript ?? null,
+        transcript_language: voiceResult?.language ?? null,
+        transcript_english: voiceResult?.english_translation ?? null,
       });
       setSubmittedCode(incident.report_code);
       setSubmittedToken(incident.tracking_token);
@@ -299,11 +388,36 @@ export function ReportPage() {
                 AI Assist
               </button>
             </div>
+            <div className="mb-3 rounded-lg border border-neutral-200 bg-neutral-50 p-3">
+              <div className="flex flex-wrap items-center gap-2">
+                {!recording ? (
+                  <button type="button" className="btn-secondary btn-sm" onClick={() => void beginRecording()} disabled={transcribing || !isRecordingSupported()}>
+                    {transcribing ? <LoadingSpinner size={14} /> : <Mic size={14} />}
+                    {transcribing ? 'Transcribing…' : voiceResult ? 'Record again' : 'Speak in English or Urdu'}
+                  </button>
+                ) : (
+                  <button type="button" className="btn-danger btn-sm" onClick={() => void finishRecording()}>
+                    <Square size={13} /> Stop recording
+                  </button>
+                )}
+                {recording && <span className="text-xs font-medium text-red-600">Recording {Math.floor(recordingSeconds / 60)}:{String(recordingSeconds % 60).padStart(2, '0')} / 2:00</span>}
+                {voiceResult && <button type="button" className="btn-ghost btn-sm ml-auto" onClick={removeVoice}><Trash2 size={14} /> Remove voice</button>}
+              </div>
+              {!isRecordingSupported() && <p className="mt-2 text-xs text-neutral-500">Voice recording is not supported in this browser. Please type your report.</p>}
+              {voiceError && <p className="mt-2 text-xs text-error">{voiceError}</p>}
+              {voiceResult && (
+                <div className="mt-3 border-t border-neutral-200 pt-3">
+                  <p className="mb-1 text-xs font-medium text-neutral-500">Original transcript</p>
+                  <TranscriptText text={voiceResult.transcript} language={voiceResult.language} className="text-sm text-neutral-800" />
+                  {voiceResult.language !== 'en' && <p className="mt-2 text-xs text-neutral-500">The editable description below keeps your original words. Coordinators will also receive an English translation.</p>}
+                </div>
+              )}
+            </div>
             <textarea
               {...register('description')}
               rows={4}
               className="input resize-none"
-              placeholder="Describe what's happening. E.g., 'Water is entering our house, my elderly father cannot walk, and we are trapped upstairs.'"
+              placeholder="Type what is happening, or record a voice report in English or Urdu."
             />
             {errors.description && <p className="text-xs text-error mt-1">{errors.description.message}</p>}
             {aiError && (

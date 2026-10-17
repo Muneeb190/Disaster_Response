@@ -10,15 +10,12 @@
 do $$ begin
   create type public.app_role as enum ('public', 'responder', 'admin');
 exception when duplicate_object then null; end $$;
-
 do $$ begin
   create type public.account_status as enum ('invited', 'active', 'suspended', 'disabled');
 exception when duplicate_object then null; end $$;
-
 do $$ begin
   create type public.role_invitation_status as enum ('pending', 'accepted', 'declined', 'expired', 'revoked');
 exception when duplicate_object then null; end $$;
-
 create table if not exists public.profiles (
   id uuid primary key references auth.users(id) on delete cascade,
   email text not null,
@@ -28,7 +25,6 @@ create table if not exists public.profiles (
   updated_at timestamptz not null default now()
 );
 create unique index if not exists idx_profiles_email_lower on public.profiles(lower(email));
-
 create table if not exists public.user_roles (
   user_id uuid not null references public.profiles(id) on delete cascade,
   role public.app_role not null,
@@ -36,7 +32,6 @@ create table if not exists public.user_roles (
   granted_at timestamptz not null default now(),
   primary key (user_id, role)
 );
-
 create table if not exists public.team_members (
   user_id uuid not null references public.profiles(id) on delete cascade,
   team_id uuid not null references public.rescue_teams(id) on delete cascade,
@@ -46,7 +41,6 @@ create table if not exists public.team_members (
   primary key (user_id, team_id)
 );
 create index if not exists idx_team_members_team on public.team_members(team_id) where active;
-
 create table if not exists public.role_invitations (
   id uuid primary key default gen_random_uuid(),
   user_id uuid references public.profiles(id) on delete cascade,
@@ -62,26 +56,21 @@ create table if not exists public.role_invitations (
   check (role <> 'responder' or team_id is not null)
 );
 create index if not exists idx_role_invitations_email on public.role_invitations(lower(email), status);
-
 alter table public.incidents
   add column if not exists reporter_user_id uuid references public.profiles(id) on delete set null,
   add column if not exists tracking_token_hash text,
   add column if not exists is_demo boolean not null default false,
   add column if not exists data_source text not null default 'public_report';
 create index if not exists idx_incidents_reporter on public.incidents(reporter_user_id);
-
 alter table public.audit_logs
   add column if not exists actor_user_id uuid references public.profiles(id) on delete set null,
   add column if not exists actor_role public.app_role,
   add column if not exists correlation_id uuid not null default gen_random_uuid();
-
 alter table public.alerts
   add column if not exists acknowledged_by uuid references public.profiles(id) on delete set null;
-
 create schema if not exists private;
 revoke all on schema private from public;
 grant usage on schema private to authenticated, anon;
-
 create or replace function private.has_role(requested_role public.app_role, requested_user uuid default auth.uid())
 returns boolean
 language sql
@@ -99,7 +88,6 @@ as $$
         and ur.role = requested_role
     );
 $$;
-
 create or replace function private.is_admin()
 returns boolean
 language sql
@@ -107,7 +95,6 @@ stable
 security definer
 set search_path = ''
 as $$ select private.has_role('admin'::public.app_role, auth.uid()); $$;
-
 create or replace function private.is_team_member(requested_team uuid)
 returns boolean
 language sql
@@ -121,11 +108,9 @@ as $$
       where tm.user_id = auth.uid() and tm.team_id = requested_team and tm.active
     );
 $$;
-
 grant execute on function private.has_role(public.app_role, uuid) to authenticated, anon;
 grant execute on function private.is_admin() to authenticated;
 grant execute on function private.is_team_member(uuid) to authenticated;
-
 create or replace function public.handle_new_auth_user()
 returns trigger
 language plpgsql
@@ -150,21 +135,17 @@ begin
   return new;
 end;
 $$;
-
 drop trigger if exists on_auth_user_created on auth.users;
 create trigger on_auth_user_created
   after insert or update of email on auth.users
   for each row execute function public.handle_new_auth_user();
-
 insert into public.profiles (id, email, full_name, account_status)
 select id, coalesce(email, ''), coalesce(raw_user_meta_data ->> 'full_name', split_part(coalesce(email, ''), '@', 1)), 'active'
 from auth.users
 on conflict (id) do nothing;
-
 insert into public.user_roles (user_id, role)
 select id, 'public'::public.app_role from public.profiles
 on conflict do nothing;
-
 create or replace function public.update_my_profile(p_full_name text)
 returns public.profiles
 language plpgsql
@@ -182,7 +163,6 @@ begin
   return result;
 end;
 $$;
-
 create or replace function public.submit_public_incident(
   p_type public.incident_type,
   p_description text,
@@ -239,7 +219,6 @@ begin
   );
 end;
 $$;
-
 create or replace function public.get_public_incident_status(p_report_code text, p_tracking_token text default null)
 returns jsonb
 language plpgsql
@@ -284,7 +263,6 @@ begin
   );
 end;
 $$;
-
 create or replace function public.responder_update_assignment_status(p_assignment_id uuid, p_status public.assignment_status)
 returns public.assignments
 language plpgsql
@@ -321,14 +299,12 @@ begin
   return result;
 end;
 $$;
-
 -- Existing security-definer operational functions become invoker functions so
 -- their writes are still subject to the caller's RLS permissions.
 alter function public.recalculate_incident_priority(uuid, text) security invoker;
 alter function public.recommend_teams(uuid) security invoker;
 alter function public.create_assignment(uuid, uuid, uuid[], text) security invoker;
 alter function public.cancel_assignment(uuid, text, text) security invoker;
-
 -- Remove the original demo-wide policies.
 do $$
 declare table_name text; policy_name text;
@@ -339,12 +315,10 @@ begin
     end loop;
   end loop;
 end $$;
-
 alter table public.profiles enable row level security;
 alter table public.user_roles enable row level security;
 alter table public.team_members enable row level security;
 alter table public.role_invitations enable row level security;
-
 -- Profiles and role metadata.
 create policy profiles_read_self_or_admin on public.profiles for select to authenticated
 using (id = auth.uid() or private.is_admin());
@@ -356,7 +330,6 @@ create policy team_members_read_own_or_admin on public.team_members for select t
 using (user_id = auth.uid() or private.is_admin());
 create policy invitations_read_recipient_or_admin on public.role_invitations for select to authenticated
 using (user_id = auth.uid() or lower(email) = lower(coalesce(auth.jwt() ->> 'email', '')) or private.is_admin());
-
 -- Admin operational access.
 create policy incidents_admin_all on public.incidents for all to authenticated using (private.is_admin()) with check (private.is_admin());
 create policy teams_admin_all on public.rescue_teams for all to authenticated using (private.is_admin()) with check (private.is_admin());
@@ -366,11 +339,9 @@ create policy audit_admin_read on public.audit_logs for select to authenticated 
 create policy audit_admin_insert on public.audit_logs for insert to authenticated with check (private.is_admin());
 create policy escalations_admin_all on public.escalations for all to authenticated using (private.is_admin()) with check (private.is_admin());
 create policy alerts_admin_all on public.alerts for all to authenticated using (private.is_admin()) with check (private.is_admin());
-
 -- Registered public users retain private access to reports they submitted.
 create policy incidents_owner_read on public.incidents for select to authenticated
 using (reporter_user_id = auth.uid());
-
 -- Responders can read only their teams and assignments, plus the incident and
 -- operational resources needed to perform those assignments.
 create policy teams_responder_read on public.rescue_teams for select to authenticated
@@ -393,16 +364,13 @@ using (
     where a.incident_id = alerts.incident_id and private.is_team_member(a.team_id)
   )
 );
-
 -- Explicit grants and revocations: policies and grants are both required.
 revoke all on public.profiles, public.user_roles, public.team_members, public.role_invitations from anon;
 revoke all on public.incidents, public.rescue_teams, public.resources, public.assignments, public.audit_logs, public.escalations, public.alerts from anon;
-
 grant select on public.profiles, public.user_roles, public.team_members, public.role_invitations to authenticated;
 grant update on public.profiles to authenticated;
 grant select, insert, update, delete on public.incidents, public.rescue_teams, public.resources, public.assignments, public.escalations, public.alerts to authenticated;
 grant select, insert on public.audit_logs to authenticated;
-
 revoke execute on function public.recalculate_incident_priority(uuid, text) from anon, public;
 revoke execute on function public.recommend_teams(uuid) from anon, public;
 revoke execute on function public.create_assignment(uuid, uuid, uuid[], text) from anon, public;
@@ -411,7 +379,6 @@ grant execute on function public.recalculate_incident_priority(uuid, text) to au
 grant execute on function public.recommend_teams(uuid) to authenticated;
 grant execute on function public.create_assignment(uuid, uuid, uuid[], text) to authenticated;
 grant execute on function public.cancel_assignment(uuid, text, text) to authenticated;
-
 revoke execute on function public.update_my_profile(text) from public, anon;
 grant execute on function public.update_my_profile(text) to authenticated;
 revoke execute on function public.submit_public_incident(public.incident_type,text,text,int,public.tri_state,public.tri_state,public.tri_state,public.tri_state,double precision,double precision,text,text) from public;
@@ -420,4 +387,3 @@ revoke execute on function public.get_public_incident_status(text,text) from pub
 grant execute on function public.get_public_incident_status(text,text) to anon, authenticated;
 revoke execute on function public.responder_update_assignment_status(uuid,public.assignment_status) from public, anon;
 grant execute on function public.responder_update_assignment_status(uuid,public.assignment_status) to authenticated;
-
