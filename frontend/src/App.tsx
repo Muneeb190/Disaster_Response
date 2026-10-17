@@ -18,6 +18,10 @@ import { MyReportsPage } from '@/pages/MyReportsPage';
 import { ResponderPage } from '@/pages/ResponderPage';
 import { AcceptInvitePage } from '@/pages/AcceptInvitePage';
 import { AdminUsersPage } from '@/pages/AdminUsersPage';
+import { SheltersPage } from '@/pages/SheltersPage';
+import { AlertsPage } from '@/pages/AlertsPage';
+import { ActivityPage } from '@/pages/ActivityPage';
+import { SituationReportPage } from '@/pages/SituationReportPage';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -45,6 +49,10 @@ export default function App() {
             <Route path="/teams" element={<RoleRoute allowed={['admin']}><TeamsPage /></RoleRoute>} />
             <Route path="/resources" element={<RoleRoute allowed={['admin']}><ResourcesPage /></RoleRoute>} />
             <Route path="/assignments" element={<RoleRoute allowed={['admin']}><AssignmentsPage /></RoleRoute>} />
+            <Route path="/shelters" element={<RoleRoute allowed={['admin']}><SheltersPage /></RoleRoute>} />
+            <Route path="/alerts" element={<RoleRoute allowed={['admin']}><AlertsPage /></RoleRoute>} />
+            <Route path="/activity" element={<RoleRoute allowed={['admin']}><ActivityPage /></RoleRoute>} />
+            <Route path="/reports/summary" element={<RoleRoute allowed={['admin']}><SituationReportPage /></RoleRoute>} />
             <Route path="/login" element={<AuthPage mode="login" />} />
             <Route path="/signup" element={<AuthPage mode="signup" />} />
             <Route path="/forgot-password" element={<PasswordRecoveryPage />} />

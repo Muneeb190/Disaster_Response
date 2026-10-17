@@ -2,22 +2,25 @@ import { useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import {
   ArrowLeft, ArrowRight, Check, X, AlertTriangle, RefreshCw, Siren, Users,
-  MapPin, Clock, FileText, Activity, Zap, AlertOctagon, ShieldCheck
+  MapPin, Clock, FileText, Zap, AlertOctagon, ShieldCheck, PencilLine, CheckCircle2
 } from 'lucide-react';
 import { DashboardLayout } from '@/components/dashboard/DashboardLayout';
 import { MiniMap } from '@/components/map/IncidentMap';
-import { PriorityBadge, StatusBadge, VerificationBadge, TriStateBadge, TeamStatusBadge, AssignmentStatusBadge } from '@/components/ui/Badges';
-import { Modal, ConfirmDialog } from '@/components/ui/Modal';
+import { IncidentTimeline } from '@/components/incident/IncidentTimeline';
+import { SuitableShelters } from '@/components/incident/SuitableShelters';
+import { DemoBadge, PriorityBadge, StatusBadge, VerificationBadge, TriStateBadge, TeamStatusBadge, AssignmentStatusBadge } from '@/components/ui/Badges';
+import { Modal, ConfirmDialog, ReasonDialog } from '@/components/ui/Modal';
 import { Skeleton, EmptyState, LoadingSpinner, ErrorState } from '@/components/ui/States';
 import { useToast } from '@/components/ui/toast-context';
 import {
   useIncident, useUpdateIncident, useRecalculatePriority, useTeamRecommendations,
-  useTeams, useResources, useCreateAssignment, useAssignmentsForIncident,
-  useCancelAssignment, useUpdateAssignment, useEscalations, useAuditLogs,
+  useTeams, useResources, useCreateAssignment, useAssignmentsForIncident, useSetAssignmentStatus,
 } from '@/hooks/useData';
-import { parseLocation, INCIDENT_TYPE_LABELS, STATUS_LABELS } from '@/types';
-import type { IncidentStatus, VerificationStatus } from '@/types';
+import { parseLocation, INCIDENT_TYPE_LABELS, STATUS_LABELS, VERIFICATION_LABELS } from '@/types';
+import type { Incident, IncidentStatus, IncidentType, TriState, VerificationStatus } from '@/types';
 import { formatDateTime, timeAgo } from '@/lib/utils';
+
+const errorMessage = (err: unknown, fallback: string) => (err instanceof Error ? err.message : fallback);
 
 export function IncidentDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -27,22 +30,22 @@ export function IncidentDetailPage() {
   const teams = useTeams();
   const resources = useResources();
   const assignments = useAssignmentsForIncident(id!);
-  const escalations = useEscalations(id!);
-  const auditLogs = useAuditLogs('incident', id!, 20);
   const updateIncident = useUpdateIncident();
   const recalcPriority = useRecalculatePriority();
   const createAssignment = useCreateAssignment();
-  const cancelAssignment = useCancelAssignment();
-  const updateAssignment = useUpdateAssignment();
+  const setAssignmentStatus = useSetAssignmentStatus();
 
   const [assignModal, setAssignModal] = useState(false);
   const [selectedTeam, setSelectedTeam] = useState<string>('');
   const [selectedResources, setSelectedResources] = useState<string[]>([]);
   const [confirmAssign, setConfirmAssign] = useState(false);
   const [confirmCancel, setConfirmCancel] = useState<string | null>(null);
+  const [confirmComplete, setConfirmComplete] = useState<string | null>(null);
   const [notesModal, setNotesModal] = useState(false);
   const [notesValue, setNotesValue] = useState('');
-  const [confirmStatus, setConfirmStatus] = useState<IncidentStatus | null>(null);
+  const [statusChange, setStatusChange] = useState<IncidentStatus | null>(null);
+  const [verifyChange, setVerifyChange] = useState<VerificationStatus | null>(null);
+  const [factsModal, setFactsModal] = useState(false);
 
   if (incident.isLoading) {
     return <DashboardLayout title="Loading incident..."><Skeleton className="h-96 w-full" /></DashboardLayout>;
@@ -59,26 +62,26 @@ export function IncidentDetailPage() {
   const activeAssignment = assignments.data?.find((a) => ['assigned', 'dispatched'].includes(a.status));
   const assignedTeam = teams.data?.find((t) => t.id === inc.assigned_team_id);
 
-  const handleVerify = async (status: VerificationStatus) => {
+  const handleVerify = async (status: VerificationStatus, reason: string) => {
     try {
-      await updateIncident.mutateAsync({ id: inc.id, updates: { verification_status: status } });
-      toast(`Report ${status}`, 'success');
-    } catch { toast('Failed to update verification', 'error'); }
+      await updateIncident.mutateAsync({ id: inc.id, updates: { verification_status: status }, reason });
+      toast(`Verification set to ${VERIFICATION_LABELS[status]}`, 'success');
+    } catch (err) { toast(errorMessage(err, 'Failed to update verification'), 'error'); }
   };
 
-  const handleStatusChange = async (status: IncidentStatus) => {
-    setConfirmStatus(null);
+  // Resolving or cancelling also closes the active assignment and frees the team (done in the database).
+  const handleStatusChange = async (status: IncidentStatus, reason: string) => {
     try {
-      const updates: Record<string, unknown> = { status };
-      if (status === 'resolved') {
-        // If there's an active assignment, mark it completed
-        if (activeAssignment) {
-          await updateAssignment.mutateAsync({ id: activeAssignment.id, updates: { status: 'completed', completed_at: new Date().toISOString() } });
-        }
-      }
-      await updateIncident.mutateAsync({ id: inc.id, updates });
+      await updateIncident.mutateAsync({ id: inc.id, updates: { status }, reason });
       toast(`Status changed to ${STATUS_LABELS[status]}`, 'success');
-    } catch { toast('Failed to update status', 'error'); }
+    } catch (err) { toast(errorMessage(err, 'Failed to update status'), 'error'); }
+  };
+
+  const handleAssignmentStatus = async (assignmentId: string, status: 'dispatched' | 'completed' | 'cancelled', reason?: string) => {
+    try {
+      await setAssignmentStatus.mutateAsync({ id: assignmentId, status, reason });
+      toast(status === 'dispatched' ? 'Team dispatched' : status === 'completed' ? 'Assignment completed — team and resources released' : 'Assignment cancelled — team and resources released', 'success');
+    } catch (err) { toast(errorMessage(err, 'Failed to update assignment'), 'error'); }
   };
 
   const handleRecalculate = async () => {
@@ -92,16 +95,13 @@ export function IncidentDetailPage() {
     } catch { toast('Failed to recalculate priority', 'error'); }
   };
 
-  const handleSimulateEscalation = async () => {
+  const handleUpdateFacts = async (updates: Partial<Incident>, reason: string) => {
     try {
-      await updateIncident.mutateAsync({ id: inc.id, updates: { people_trapped: 'yes', danger_increasing: 'yes' } });
-      const result = await recalcPriority.mutateAsync(inc.id);
-      if (result.escalated) {
-        toast(`Escalation simulated: priority increased to ${result.new_level}`, 'warning');
-      } else {
-        toast('Conditions updated — no escalation detected', 'info');
-      }
-    } catch { toast('Failed to simulate escalation', 'error'); }
+      const updated = await updateIncident.mutateAsync({ id: inc.id, updates, reason });
+      setFactsModal(false);
+      if (updated.priority_score > inc.priority_score) toast(`Facts updated — priority rose to ${updated.priority_level} (${updated.priority_score})`, 'warning');
+      else toast(`Facts updated — priority ${updated.priority_level} (${updated.priority_score})`, 'success');
+    } catch (err) { toast(errorMessage(err, 'Failed to update facts'), 'error'); }
   };
 
   const handleAssign = async () => {
@@ -117,23 +117,12 @@ export function IncidentDetailPage() {
     }
   };
 
-  const handleCancelAssignment = async (reason: string) => {
-    if (!confirmCancel) return;
-    try {
-      await cancelAssignment.mutateAsync({ assignmentId: confirmCancel, reason });
-      toast('Assignment cancelled — team and resources released', 'success');
-    } catch (err) {
-      toast(err instanceof Error ? err.message : 'Failed to cancel assignment', 'error');
-    }
-    setConfirmCancel(null);
-  };
-
   const handleSaveNotes = async () => {
     try {
       await updateIncident.mutateAsync({ id: inc.id, updates: { coordinator_notes: notesValue } });
       toast('Notes saved', 'success');
       setNotesModal(false);
-    } catch { toast('Failed to save notes', 'error'); }
+    } catch (err) { toast(errorMessage(err, 'Failed to save notes'), 'error'); }
   };
 
   return (
@@ -160,6 +149,7 @@ export function IncidentDetailPage() {
                   <div className="flex items-center gap-2 mb-1">
                     <PriorityBadge level={inc.priority_level} />
                     <span className="text-lg font-bold text-neutral-800">{inc.priority_score}/100</span>
+                    {inc.is_demo && <DemoBadge />}
                   </div>
                   <p className="text-xs text-neutral-400">Priority score — decision support only</p>
                 </div>
@@ -197,23 +187,22 @@ export function IncidentDetailPage() {
               <button className="btn-secondary btn-sm" onClick={handleRecalculate} disabled={recalcPriority.isPending}>
                 <RefreshCw size={14} /> Recalculate Priority
               </button>
-              <button className="btn-secondary btn-sm" onClick={handleSimulateEscalation} disabled={updateIncident.isPending}>
-                <AlertTriangle size={14} /> Simulate Worsening
+              <button className="btn-secondary btn-sm" onClick={() => setFactsModal(true)} disabled={updateIncident.isPending}>
+                <PencilLine size={14} /> Update facts
               </button>
               <select
                 className="select btn-sm w-auto"
                 value=""
                 onChange={(e) => {
-                  if (e.target.value) setConfirmStatus(e.target.value as IncidentStatus);
+                  if (e.target.value) setStatusChange(e.target.value as IncidentStatus);
                   e.target.value = '';
                 }}
               >
-                <option value="">Change Status...</option>
-                <option value="verified">Mark Verified</option>
-                <option value="assigned">Mark Assigned</option>
-                <option value="dispatched">Mark Dispatched</option>
-                <option value="resolved">Mark Resolved</option>
-                <option value="cancelled">Cancel Incident</option>
+                <option value="">Change status…</option>
+                {inc.status !== 'reported' && <option value="reported">Reopen as reported</option>}
+                {inc.status !== 'verified' && <option value="verified">Mark verified</option>}
+                {inc.status !== 'resolved' && <option value="resolved">Mark resolved</option>}
+                {inc.status !== 'cancelled' && <option value="cancelled">Cancel incident</option>}
               </select>
             </div>
           </div>
@@ -254,6 +243,8 @@ export function IncidentDetailPage() {
             </div>
           )}
 
+          <SuitableShelters position={pos} needVulnerable={inc.vulnerable_people === 'yes'} />
+
           {/* Assignment & Recommendations */}
           <div className="card card-body">
             <div className="flex items-center justify-between mb-3">
@@ -279,13 +270,13 @@ export function IncidentDetailPage() {
                 </div>
                 <div className="flex items-center gap-2 mt-2">
                   {activeAssignment.status === 'assigned' && (
-                    <button
-                      className="btn-secondary btn-sm"
-                      onClick={() => updateAssignment.mutateAsync({ id: activeAssignment.id, updates: { status: 'dispatched', dispatched_at: new Date().toISOString() } }).then(() => toast('Team dispatched', 'success')).catch(() => toast('Failed to dispatch', 'error'))}
-                    >
+                    <button className="btn-secondary btn-sm" disabled={setAssignmentStatus.isPending} onClick={() => void handleAssignmentStatus(activeAssignment.id, 'dispatched')}>
                       <ArrowRight size={14} /> Dispatch
                     </button>
                   )}
+                  <button className="btn-secondary btn-sm" disabled={setAssignmentStatus.isPending} onClick={() => setConfirmComplete(activeAssignment.id)}>
+                    <CheckCircle2 size={14} /> Mark completed
+                  </button>
                   <button className="btn-danger btn-sm" onClick={() => setConfirmCancel(activeAssignment.id)}>
                     <X size={14} /> Cancel Assignment
                   </button>
@@ -361,68 +352,20 @@ export function IncidentDetailPage() {
               <ShieldCheck size={14} /> Verification
             </h3>
             <div className="flex flex-wrap gap-2">
-              <button className={`btn btn-sm ${inc.verification_status === 'verified' ? 'bg-green-100 text-green-700' : 'btn-secondary'}`} onClick={() => handleVerify('verified')}>
+              <button className={`btn btn-sm ${inc.verification_status === 'verified' ? 'bg-green-100 text-green-700' : 'btn-secondary'}`} disabled={inc.verification_status === 'verified'} onClick={() => setVerifyChange('verified')}>
                 <Check size={14} /> Verify
               </button>
-              <button className={`btn btn-sm ${inc.verification_status === 'disputed' ? 'bg-red-100 text-red-700' : 'btn-secondary'}`} onClick={() => handleVerify('disputed')}>
+              <button className={`btn btn-sm ${inc.verification_status === 'disputed' ? 'bg-red-100 text-red-700' : 'btn-secondary'}`} disabled={inc.verification_status === 'disputed'} onClick={() => setVerifyChange('disputed')}>
                 <X size={14} /> Dispute
               </button>
-              <button className={`btn btn-sm ${inc.verification_status === 'flagged' ? 'bg-yellow-100 text-yellow-700' : 'btn-secondary'}`} onClick={() => handleVerify('flagged')}>
+              <button className={`btn btn-sm ${inc.verification_status === 'flagged' ? 'bg-yellow-100 text-yellow-700' : 'btn-secondary'}`} disabled={inc.verification_status === 'flagged'} onClick={() => setVerifyChange('flagged')}>
                 <AlertTriangle size={14} /> Flag
               </button>
             </div>
           </div>
 
-          {/* Escalation history */}
-          <div className="card">
-            <div className="px-4 py-3 border-b border-neutral-200">
-              <h3 className="text-sm font-semibold text-neutral-700 flex items-center gap-2">
-                <AlertOctagon size={14} /> Escalation History
-              </h3>
-            </div>
-            <div className="p-4">
-              {escalations.data && escalations.data.length > 0 ? (
-                <div className="space-y-3">
-                  {escalations.data.map((esc) => (
-                    <div key={esc.id} className="text-xs border-l-2 border-orange-300 pl-3">
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className="font-medium text-neutral-700">{esc.previous_score} → {esc.new_score}</span>
-                        {esc.new_level && <PriorityBadge level={esc.new_level} />}
-                      </div>
-                      <p className="text-neutral-500">{esc.reason}</p>
-                      <p className="text-[10px] text-neutral-400 mt-0.5">{timeAgo(esc.created_at)}</p>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <p className="text-xs text-neutral-400">No escalations recorded.</p>
-              )}
-            </div>
-          </div>
-
-          {/* Audit trail */}
-          <div className="card">
-            <div className="px-4 py-3 border-b border-neutral-200">
-              <h3 className="text-sm font-semibold text-neutral-700 flex items-center gap-2">
-                <Activity size={14} /> Audit Trail
-              </h3>
-            </div>
-            <div className="p-4 max-h-64 overflow-y-auto">
-              {auditLogs.data && auditLogs.data.length > 0 ? (
-                <div className="space-y-2">
-                  {auditLogs.data.map((log) => (
-                    <div key={log.id} className="text-xs">
-                      <p className="text-neutral-700"><span className="font-medium">{log.actor}</span> — {log.action.replace(/_/g, ' ')}</p>
-                      {log.reason && <p className="text-neutral-400">{log.reason}</p>}
-                      <p className="text-[10px] text-neutral-400">{timeAgo(log.created_at)}</p>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <p className="text-xs text-neutral-400">No audit records.</p>
-              )}
-            </div>
-          </div>
+          {/* Full history: reports, status, verification, priority, facts, assignments */}
+          <IncidentTimeline incidentId={inc.id} />
         </div>
       </div>
 
@@ -506,20 +449,48 @@ export function IncidentDetailPage() {
         confirmLabel="Assign"
       />
 
-      <CancelReasonDialog
+      <ReasonDialog
         open={!!confirmCancel}
         onClose={() => setConfirmCancel(null)}
-        onConfirm={handleCancelAssignment}
+        onConfirm={(reason) => confirmCancel && void handleAssignmentStatus(confirmCancel, 'cancelled', reason)}
+        title="Cancel assignment"
+        message="The team and any reserved resources go back to the available pool. The incident returns to the queue."
+        confirmLabel="Cancel assignment"
+        danger
       />
 
-      <ConfirmDialog
-        open={!!confirmStatus}
-        onClose={() => setConfirmStatus(null)}
-        onConfirm={() => confirmStatus && handleStatusChange(confirmStatus)}
-        title="Change Status"
-        message={`Are you sure you want to change this incident's status to "${confirmStatus ? STATUS_LABELS[confirmStatus] : ''}"?`}
-        confirmLabel="Change Status"
+      <ReasonDialog
+        open={!!confirmComplete}
+        onClose={() => setConfirmComplete(null)}
+        onConfirm={(reason) => confirmComplete && void handleAssignmentStatus(confirmComplete, 'completed', reason)}
+        title="Complete assignment"
+        message="Marks the response as finished, resolves the incident, and makes the team and reserved resources available again."
+        confirmLabel="Mark completed"
+        required={false}
       />
+
+      <ReasonDialog
+        open={!!statusChange}
+        onClose={() => setStatusChange(null)}
+        onConfirm={(reason) => statusChange && void handleStatusChange(statusChange, reason)}
+        title={`Change status to ${statusChange ? STATUS_LABELS[statusChange] : ''}`}
+        message={activeAssignment && (statusChange === 'resolved' || statusChange === 'cancelled')
+          ? `This also ${statusChange === 'resolved' ? 'completes' : 'cancels'} the active assignment and releases the team.`
+          : 'Status changes are recorded in the timeline with your reason.'}
+        confirmLabel="Change status"
+        danger={statusChange === 'cancelled'}
+      />
+
+      <ReasonDialog
+        open={!!verifyChange}
+        onClose={() => setVerifyChange(null)}
+        onConfirm={(reason) => verifyChange && void handleVerify(verifyChange, reason)}
+        title={`Mark report ${verifyChange ? VERIFICATION_LABELS[verifyChange].toLowerCase() : ''}`}
+        message="Say what you checked, e.g. a call-back to the reporter or a field team's confirmation."
+        confirmLabel="Save"
+      />
+
+      <FactsModal open={factsModal} incident={inc} busy={updateIncident.isPending} onClose={() => setFactsModal(false)} onSave={handleUpdateFacts} />
 
       {/* Notes modal */}
       <Modal open={notesModal} onClose={() => setNotesModal(false)} title="Coordinator Notes" size="sm">
@@ -539,18 +510,49 @@ export function IncidentDetailPage() {
   );
 }
 
-function CancelReasonDialog({ open, onClose, onConfirm }: { open: boolean; onClose: () => void; onConfirm: (reason: string) => void }) {
+const TRI_FIELDS = [
+  ['people_trapped', 'People trapped'],
+  ['injuries_reported', 'Injuries'],
+  ['vulnerable_people', 'Vulnerable people'],
+  ['danger_increasing', 'Danger increasing'],
+] as const;
+
+// Coordinator correction of reported facts. Priority is recalculated in the database and the change is logged.
+function FactsModal({ open, incident, busy, onClose, onSave }: { open: boolean; incident: Incident; busy: boolean; onClose: () => void; onSave: (updates: Partial<Incident>, reason: string) => void }) {
+  const initial = { type: incident.type, people_affected: incident.people_affected, people_trapped: incident.people_trapped, injuries_reported: incident.injuries_reported, vulnerable_people: incident.vulnerable_people, danger_increasing: incident.danger_increasing };
+  const [facts, setFacts] = useState(initial);
   const [reason, setReason] = useState('');
+  const changes = Object.fromEntries(Object.entries(facts).filter(([key, value]) => value !== initial[key as keyof typeof initial])) as Partial<Incident>;
+  const close = () => { setFacts(initial); setReason(''); onClose(); };
   return (
-    <Modal open={open} onClose={onClose} title="Cancel Assignment" size="sm">
-      <p className="text-sm text-neutral-600 mb-3">
-        Cancelling will release the team and reserved resources back to the available pool.
-      </p>
-      <input className="input" placeholder="Reason for cancellation..." value={reason} onChange={(e) => setReason(e.target.value)} />
+    <Modal open={open} onClose={close} title="Update reported facts" size="md">
+      <p className="text-sm text-neutral-600 mb-4">Correct what is known about this incident. The priority score is recalculated from the new facts.</p>
+      <div className="grid sm:grid-cols-2 gap-3">
+        <div>
+          <label className="label">Type</label>
+          <select className="select" value={facts.type} onChange={(e) => setFacts({ ...facts, type: e.target.value as IncidentType })}>
+            {Object.entries(INCIDENT_TYPE_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+          </select>
+        </div>
+        <div>
+          <label className="label">People affected</label>
+          <input className="input" type="number" min={0} value={facts.people_affected} onChange={(e) => setFacts({ ...facts, people_affected: Math.max(0, Number(e.target.value) || 0) })} />
+        </div>
+        {TRI_FIELDS.map(([key, label]) => (
+          <div key={key}>
+            <label className="label">{label}</label>
+            <select className="select" value={facts[key]} onChange={(e) => setFacts({ ...facts, [key]: e.target.value as TriState })}>
+              <option value="yes">Yes</option><option value="no">No</option><option value="unknown">Unknown</option>
+            </select>
+          </div>
+        ))}
+      </div>
+      <label className="label mt-4">Reason / source of the new information</label>
+      <textarea className="input resize-none" rows={2} value={reason} onChange={(e) => setReason(e.target.value)} placeholder="e.g. Reporter called back: water now waist high" />
       <div className="flex justify-end gap-3 mt-4">
-        <button className="btn-secondary" onClick={onClose}>Keep Assignment</button>
-        <button className="btn-danger" onClick={() => { onConfirm(reason); setReason(''); onClose(); }}>
-          Cancel Assignment
+        <button className="btn-secondary" onClick={close}>Cancel</button>
+        <button className="btn-primary" disabled={busy || !reason.trim() || Object.keys(changes).length === 0} onClick={() => onSave(changes, reason.trim())}>
+          {busy ? <LoadingSpinner size={16} /> : 'Save facts'}
         </button>
       </div>
     </Modal>

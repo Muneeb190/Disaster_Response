@@ -169,7 +169,7 @@
   .command-link { @apply inline-flex items-center gap-1 text-[11px] font-semibold text-[#196c61] hover:text-[#0c554c]; }
   .command-map-panel { @apply min-w-0; }
   .command-map-controls { @apply flex items-center gap-3 px-3 py-2 border-b border-[#e0e6e1] text-[10px] text-[#61716c]; }
-  .command-map-controls span { @apply inline-flex items-center gap-1.5 whitespace-nowrap; }
+  .command-map-controls span, .command-map-controls label { @apply inline-flex items-center gap-1.5 whitespace-nowrap cursor-pointer; }
   .command-map-controls input { @apply accent-[#176f63]; }
   .command-map-layers { @apply text-[#176f63] font-medium; }
   .command-map-panel > .card { @apply rounded-none border-0; }
@@ -215,7 +215,9 @@
   .command-status { @apply inline-flex rounded px-2 py-1 text-[9px] font-medium; }
   .command-status-assigned { @apply bg-[#e3f1ec] text-[#237566]; }
   .command-status-available { @apply bg-[#f1f3f1] text-[#687873]; }
-  .command-status-offline { @apply bg-[#f8e8e5] text-[#b14b3e]; }
+  .command-status-offline { @apply bg-[#f1f3f1] text-[#687873]; }
+  .command-status-en_route { @apply bg-[#e6eefc] text-[#2a56b3]; }
+  .command-status-unavailable { @apply bg-[#f8e8e5] text-[#b14b3e]; }
   .command-panel-foot { @apply flex justify-between px-4 py-2.5 text-[9px] text-[#87948f]; }
   .command-panel-foot span { @apply text-[#197466]; }
   .command-shelter-total { @apply flex items-end gap-2 px-4 py-4 border-b border-[#e0e6e1]; }
@@ -233,4 +235,13 @@
   .command-source-line { @apply flex justify-between gap-4 mt-5 text-[8px] font-mono text-[#87948f] uppercase tracking-[.04em]; }
   @media (max-width: 900px) { .command-sidebar { @apply w-[68px] px-2; } .command-brand { @apply justify-center px-0; } .command-brand > div:last-child, .command-nav-link span, .command-operation, .command-handover, .command-help { @apply hidden; } .command-nav-link { @apply justify-center px-2; } .command-nav-count { @apply hidden; } .command-main { @apply p-4; } .command-page-head { @apply items-start flex-col; } .command-source-line { @apply flex-col; } }
   @media (max-width: 640px) { .command-topbar { @apply px-3; } .command-top-brand, .command-location, .command-level, .command-operational, .command-topbar > div:last-child > svg { @apply hidden; } .command-kpi-grid { @apply grid-cols-1; } .command-main { @apply p-3; } .command-advisory { @apply items-start flex-wrap; } .command-advisory button { @apply ml-0; } .command-map-controls { @apply overflow-x-auto; } .command-map-legend { @apply overflow-x-auto whitespace-nowrap; } .command-page-head h1 { @apply text-2xl; } }
+}
+
+/* Situation report printing: only the report itself goes to paper. */
+@media print {
+  .command-sidebar, .command-topbar, .no-print { display: none !important; }
+  .command-app { display: block !important; }
+  .command-main { overflow: visible !important; padding: 0 !important; }
+  .print-report { box-shadow: none !important; border: none !important; }
+  .print-only { display: block !important; }
 }

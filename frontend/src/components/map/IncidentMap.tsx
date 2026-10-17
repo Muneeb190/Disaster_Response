@@ -3,9 +3,9 @@ import { MapContainer, TileLayer, Marker, Popup, CircleMarker, useMap } from 're
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { parseLocation } from '@/types';
-import type { Incident, RescueTeam, Resource } from '@/types';
+import type { Incident, RescueTeam, Resource, Shelter, TeamStatus } from '@/types';
 import { PriorityBadge } from '@/components/ui/Badges';
-import { INCIDENT_TYPE_LABELS, STATUS_LABELS } from '@/types';
+import { INCIDENT_TYPE_LABELS, STATUS_LABELS, TEAM_MARKER_COLORS, TEAM_STATUS_LABELS } from '@/types';
 import { timeAgo } from '@/lib/utils';
 
 // Custom div-icon factory for colored markers
@@ -26,30 +26,16 @@ const incidentIcons = {
   low: makeIcon('#3b82f6', 'i'),
 };
 
-const teamIcon = makeIcon('#16a34a', 'T');
+const teamIcons = Object.fromEntries(Object.entries(TEAM_MARKER_COLORS).map(([status, color]) => [status, makeIcon(color, 'T')])) as Record<TeamStatus, L.DivIcon>;
 const resourceIcon = makeIcon('#8b5cf6', 'R');
 const shelterIcon = makeIcon('#0891b2', 'S');
+const fullShelterIcon = makeIcon('#64748b', 'S');
 
-function FitBounds({ incidents, teams, resources }: { incidents: Incident[]; teams: RescueTeam[]; resources: Resource[] }) {
+function FitBounds({ locations }: { locations: (string | null)[] }) {
   const map = useMap();
   const hasFit = useRef(false);
 
-  const points = useMemo(() => {
-    const pts: [number, number][] = [];
-    incidents.forEach((i) => {
-      const p = parseLocation(i.location);
-      if (p) pts.push(p);
-    });
-    teams.forEach((t) => {
-      const p = parseLocation(t.location);
-      if (p) pts.push(p);
-    });
-    resources.forEach((r) => {
-      const p = parseLocation(r.location);
-      if (p) pts.push(p);
-    });
-    return pts;
-  }, [incidents, teams, resources]);
+  const points = useMemo(() => locations.map(parseLocation).filter((p): p is [number, number] => !!p), [locations]);
 
   useEffect(() => {
     if (points.length === 0 || hasFit.current) return;
@@ -65,23 +51,31 @@ interface IncidentMapProps {
   incidents?: Incident[];
   teams?: RescueTeam[];
   resources?: Resource[];
+  shelters?: Shelter[];
   onIncidentClick?: (id: string) => void;
+  showIncidents?: boolean;
   showTeams?: boolean;
   showResources?: boolean;
+  showShelters?: boolean;
   height?: string;
 }
 
-export function IncidentMap({ incidents = [], teams = [], resources = [], onIncidentClick, showTeams = true, showResources = true, height = '500px' }: IncidentMapProps) {
+export function IncidentMap({ incidents = [], teams = [], resources = [], shelters = [], onIncidentClick, showIncidents = true, showTeams = true, showResources = true, showShelters = true, height = '500px' }: IncidentMapProps) {
+  const locations = useMemo(
+    () => [...incidents.map((i) => i.location), ...teams.map((t) => t.location), ...resources.map((r) => r.location), ...shelters.map((s) => s.location)],
+    [incidents, teams, resources, shelters],
+  );
   return (
     <div className="card overflow-hidden" style={{ height }}>
-      <MapContainer center={[28.61, 77.2]} zoom={12} style={{ height: '100%', width: '100%' }} scrollWheelZoom>
+      {/* World view until FitBounds zooms to the data; no fixed home city. */}
+      <MapContainer center={[20, 0]} zoom={2} style={{ height: '100%', width: '100%' }} scrollWheelZoom>
         <TileLayer
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
-        <FitBounds incidents={incidents} teams={teams} resources={resources} />
+        <FitBounds locations={locations} />
 
-        {incidents.map((inc) => {
+        {showIncidents && incidents.map((inc) => {
           const pos = parseLocation(inc.location);
           if (!pos) return null;
           const icon = incidentIcons[inc.priority_level] || incidentIcons.low;
@@ -114,13 +108,34 @@ export function IncidentMap({ incidents = [], teams = [], resources = [], onInci
             const pos = parseLocation(team.location);
             if (!pos) return null;
             return (
-              <Marker key={team.id} position={pos} icon={teamIcon}>
+              <Marker key={team.id} position={pos} icon={teamIcons[team.status] ?? teamIcons.offline}>
                 <Popup>
                   <div className="text-xs space-y-1 min-w-[180px]">
                     <span className="font-bold text-neutral-800">{team.name}</span>
                     <p className="text-neutral-600"><strong>Code:</strong> {team.team_code}</p>
-                    <p className="text-neutral-600"><strong>Status:</strong> {team.status}</p>
-                    <p className="text-neutral-600"><strong>Capabilities:</strong> {team.capabilities.join(', ')}</p>
+                    <p className="text-neutral-600"><strong>Status:</strong> {TEAM_STATUS_LABELS[team.status]}</p>
+                    <p className="text-neutral-600"><strong>Capabilities:</strong> {team.capabilities.join(', ') || '—'}</p>
+                    <p className="text-neutral-400 text-[10px]">Position {team.last_location_update ? `reported ${timeAgo(team.last_location_update)}` : 'time unknown'}</p>
+                  </div>
+                </Popup>
+              </Marker>
+            );
+          })}
+
+        {showShelters &&
+          shelters.filter((shelter) => shelter.status !== 'closed').map((shelter) => {
+            const pos = parseLocation(shelter.location);
+            if (!pos) return null;
+            const facilities = ([['wheelchair_access', 'Wheelchair'], ['medical_support', 'Medical'], ['family_area', 'Family area'], ['has_power', 'Power']] as const)
+              .filter(([key]) => shelter[key]).map(([, label]) => label);
+            return (
+              <Marker key={shelter.id} position={pos} icon={shelter.status === 'full' ? fullShelterIcon : shelterIcon}>
+                <Popup>
+                  <div className="text-xs space-y-1 min-w-[180px]">
+                    <span className="font-bold text-neutral-800">{shelter.name}</span>
+                    <p className="text-neutral-600"><strong>Space:</strong> {Math.max(0, shelter.capacity - shelter.occupancy)} of {shelter.capacity} free{shelter.status === 'full' && ' (full)'}</p>
+                    <p className="text-neutral-600"><strong>Facilities:</strong> {facilities.join(', ') || 'none confirmed'}</p>
+                    <p className="text-neutral-400 text-[10px]">Updated {timeAgo(shelter.last_updated_at)} · not a safety guarantee</p>
                   </div>
                 </Popup>
               </Marker>
@@ -131,10 +146,8 @@ export function IncidentMap({ incidents = [], teams = [], resources = [], onInci
           resources.map((res) => {
             const pos = parseLocation(res.location);
             if (!pos) return null;
-            const isShelter = res.type === 'shelter';
-            const icon = isShelter ? shelterIcon : resourceIcon;
             return (
-              <Marker key={res.id} position={pos} icon={icon}>
+              <Marker key={res.id} position={pos} icon={resourceIcon}>
                 <Popup>
                   <div className="text-xs space-y-1 min-w-[180px]">
                     <span className="font-bold text-neutral-800">{res.name}</span>
@@ -155,8 +168,8 @@ export function IncidentMap({ incidents = [], teams = [], resources = [], onInci
 }
 
 // A simpler map for picking a location (report form)
-export function LocationPicker({ onPick, initialPos }: { onPick: (lat: number, lng: number) => void; initialPos?: [number, number] }) {
-  const center = initialPos || [28.61, 77.2];
+export function LocationPicker({ onPick, initialPos, center: viewCenter }: { onPick: (lat: number, lng: number) => void; initialPos?: [number, number]; center?: [number, number] }) {
+  const center = initialPos || viewCenter || [28.61, 77.2];
   return (
     <div className="card overflow-hidden h-[300px]">
       <MapContainer center={center} zoom={12} style={{ height: '100%', width: '100%' }} scrollWheelZoom>
@@ -175,7 +188,8 @@ function LocationClickHandler({ onPick, initialPos }: { onPick: (lat: number, ln
   const markerRef = useRef<L.Marker | null>(null);
 
   useEffect(() => {
-    if (initialPos) {
+    // Only place the starting marker once; re-renders must not stack extra markers.
+    if (initialPos && !markerRef.current) {
       markerRef.current = L.marker(initialPos).addTo(map);
       map.setView(initialPos, 14);
     }
