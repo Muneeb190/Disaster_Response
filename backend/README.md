@@ -21,6 +21,6 @@ npx supabase db push
 npx supabase functions deploy ai-extract --use-api
 ```
 
-The target project currently has an older incompatible schema. Review or back up any important hosted data before applying the ResQNet migrations.
+The ResQNet migrations and `ai-extract` function are deployed to the configured project. Future deployments only apply new migration files. Review and back up important hosted data before making destructive schema changes.
 
 Never commit a personal access token, database password, or service-role key.

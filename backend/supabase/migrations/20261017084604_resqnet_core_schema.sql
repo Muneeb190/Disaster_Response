@@ -167,6 +167,7 @@ create table if not exists alerts (
   severity priority_level not null default 'high',
   message text not null,
   acknowledged boolean not null default false,
+  acknowledged_at timestamptz,
   dedup_key text,
   created_at timestamptz not null default now()
 );
