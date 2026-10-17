@@ -2,3 +2,6 @@ project_id = "gzgdcmzxqlrvazawygtu"
 
 [functions.ai-extract]
 verify_jwt = false
+
+[functions.transcriptions]
+verify_jwt = false

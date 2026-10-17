@@ -27,6 +27,7 @@ export interface CreateIncidentInput {
   longitude: number;
   reporter_name?: string;
   reporter_phone?: string;
+  voice_recording_id?: string | null;
 }
 
 export interface DashboardSummary {
@@ -97,6 +98,7 @@ export function useCreateIncident() {
         longitude: input.longitude,
         reporter_name: input.reporter_name || null,
         reporter_phone: input.reporter_phone || null,
+        voice_recording_id: input.voice_recording_id || null,
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['incidents'] });
