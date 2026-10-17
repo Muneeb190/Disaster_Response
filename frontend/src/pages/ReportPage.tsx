@@ -5,6 +5,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Radio, ArrowLeft, ArrowRight, Check, Copy, MapPin, Sparkles, AlertCircle, Search } from 'lucide-react';
 import { LocationPicker } from '@/components/map/IncidentMap';
+import { VoiceRecorder } from '@/components/VoiceRecorder';
 import { useCreateIncident } from '@/hooks/useData';
 import { useToast } from '@/components/ui/toast-context';
 import { LoadingSpinner } from '@/components/ui/States';
@@ -44,10 +45,15 @@ export function ReportPage() {
   const createIncident = useCreateIncident();
   const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [submittedCode, setSubmittedCode] = useState<string | null>(null);
+  const [submittedWithVoice, setSubmittedWithVoice] = useState<boolean | null>(null);
   const [submittedToken, setSubmittedToken] = useState<string | null>(null);
   const [aiExtracting, setAiExtracting] = useState(false);
   const [aiError, setAiError] = useState<string | null>(null);
   const [aiResults, setAiResults] = useState<Record<string, unknown> | null>(null);
+  const [voiceRecordingId, setVoiceRecordingId] = useState<string | null>(null);
+  const [hasLocalAudio, setHasLocalAudio] = useState(false);
+  const [voiceUploading, setVoiceUploading] = useState(false);
+  const [reportDeliveryError, setReportDeliveryError] = useState<string | null>(null);
 
   const {
     register,
@@ -143,12 +149,18 @@ export function ReportPage() {
         longitude: coords.lng,
         reporter_name: data.reporter_name,
         reporter_phone: data.reporter_phone,
+        voice_recording_id: voiceRecordingId,
       });
+      setSubmittedWithVoice(
+        voiceRecordingId ? incident.voice_recording_id === voiceRecordingId : null
+      );
       setSubmittedCode(incident.report_code);
       setSubmittedToken(incident.tracking_token);
       toast('Emergency report submitted successfully', 'success');
     } catch (err) {
-      toast(err instanceof Error ? err.message : 'Failed to submit report', 'error');
+      const message = err instanceof Error ? err.message : 'Failed to submit report';
+      setReportDeliveryError(`${message}. The server did not confirm receipt, so do not assume rescuers have been notified.${voiceRecordingId ? ' The uploaded audio is retained on the server, but the report/audio association is unconfirmed.' : hasLocalAudio ? ' Your audio remains on this device only and was not included in the report.' : ''}`);
+      toast('Report receipt was not confirmed. Do not assume rescuers have been notified.', 'error');
     }
   };
 
@@ -167,6 +179,22 @@ export function ReportPage() {
           <p className="text-sm text-neutral-600 mb-5">
             Save both values below. The private tracking key protects your report from unauthorized access.
           </p>
+          {voiceRecordingId && (
+            <p className={`mb-5 rounded-lg border p-3 text-left text-sm ${
+              submittedWithVoice
+                ? 'border-blue-200 bg-blue-50 text-blue-900'
+                : 'border-amber-200 bg-amber-50 text-amber-900'
+            }`}>
+              {submittedWithVoice
+                ? 'Your audio reference is attached to this report. Transcription may continue processing.'
+                : 'The report was received, but the reporting server did not confirm the audio reference. The recording remains on the server; do not assume coordinators can access it.'}
+            </p>
+          )}
+          {!voiceRecordingId && hasLocalAudio && (
+            <p className="mb-5 rounded-lg border border-amber-200 bg-amber-50 p-3 text-left text-sm text-amber-900">
+              Your report was received, but the audio is saved on this device only and was not sent to rescuers.
+            </p>
+          )}
 
           <div className="bg-neutral-50 border border-neutral-200 rounded-lg p-4 mb-5">
             <p className="text-xs text-neutral-500 mb-1">Your Report ID</p>
@@ -243,6 +271,23 @@ export function ReportPage() {
         </div>
 
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+          {reportDeliveryError && (
+            <div className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-900" role="alert">
+              <AlertCircle size={18} className="mt-0.5 shrink-0" />
+              <span>{reportDeliveryError}</span>
+            </div>
+          )}
+          <VoiceRecorder
+            description={description || ''}
+            onTranscript={(transcript) => {
+              const existing = watch('description')?.trim();
+              setValue('description', existing ? `${existing}\n${transcript}` : transcript, { shouldValidate: true });
+            }}
+            onRecordingId={setVoiceRecordingId}
+            onUploadingChange={setVoiceUploading}
+            onLocalAudioSaved={() => setHasLocalAudio(true)}
+          />
+
           {/* Incident Type */}
           <div className="card card-body">
             <label className="label">Incident Type <span className="text-error">*</span></label>
@@ -362,11 +407,13 @@ export function ReportPage() {
             <Link to="/" className="btn-ghost">
               <ArrowLeft size={18} /> Cancel
             </Link>
-            <button type="submit" className="btn-primary btn-lg" disabled={createIncident.isPending}>
+            <button type="submit" className="btn-primary btn-lg" disabled={createIncident.isPending || voiceUploading}>
               {createIncident.isPending ? (
                 <>
                   <LoadingSpinner size={18} /> Submitting...
                 </>
+              ) : voiceUploading ? (
+                <>Uploading audio...</>
               ) : (
                 <>
                   Submit Report <ArrowRight size={18} />
