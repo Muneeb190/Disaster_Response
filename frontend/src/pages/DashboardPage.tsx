@@ -6,7 +6,7 @@ import { IncidentMap } from '@/components/map/IncidentMap';
 import { PriorityBadge } from '@/components/ui/Badges';
 import { Skeleton, EmptyState } from '@/components/ui/States';
 import { useDashboardSummary, useIncidents, useTeams, useResources, useAlerts, useAuditLogs, useAcknowledgeAlert } from '@/hooks/useData';
-import { useToast } from '@/components/ui/Toast';
+import { useToast } from '@/components/ui/toast-context';
 import { timeAgo } from '@/lib/utils';
 
 export function DashboardPage() {

@@ -1,11 +1,10 @@
 {
-  "name": "vite-react-typescript-starter",
+  "name": "resqnet",
   "private": true,
-  "version": "0.0.0",
+  "version": "1.0.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "server": "node server/index.js",
     "build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview",
@@ -15,19 +14,13 @@
     "@hookform/resolvers": "^5.9.2",
     "@supabase/supabase-js": "^2.57.4",
     "@tanstack/react-query": "^5.104.3",
-    "cors": "^2.8.6",
-    "date-fns": "^4.4.0",
-    "dotenv": "^18.0.8",
-    "express": "^5.3.0",
     "leaflet": "^1.9.4",
     "lucide-react": "^0.446.0",
-    "pg": "^8.23.1",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-hook-form": "^7.90.0",
     "react-leaflet": "^4.2.1",
     "react-router-dom": "^7.18.4",
-    "recharts": "^3.10.1",
     "zod": "^4.6.7"
   },
   "devDependencies": {

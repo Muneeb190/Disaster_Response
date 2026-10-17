@@ -9,7 +9,7 @@ import { MiniMap } from '@/components/map/IncidentMap';
 import { PriorityBadge, StatusBadge, VerificationBadge, TriStateBadge, TeamStatusBadge, AssignmentStatusBadge } from '@/components/ui/Badges';
 import { Modal, ConfirmDialog } from '@/components/ui/Modal';
 import { Skeleton, EmptyState, LoadingSpinner, ErrorState } from '@/components/ui/States';
-import { useToast } from '@/components/ui/Toast';
+import { useToast } from '@/components/ui/toast-context';
 import {
   useIncident, useUpdateIncident, useRecalculatePriority, useTeamRecommendations,
   useTeams, useResources, useCreateAssignment, useAssignmentsForIncident,

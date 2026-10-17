@@ -4,7 +4,7 @@ import { DashboardLayout } from '@/components/dashboard/DashboardLayout';
 import { TeamStatusBadge } from '@/components/ui/Badges';
 import { Modal } from '@/components/ui/Modal';
 import { Skeleton, EmptyState } from '@/components/ui/States';
-import { useToast } from '@/components/ui/Toast';
+import { useToast } from '@/components/ui/toast-context';
 import { useTeams, useCreateTeam, useUpdateTeam } from '@/hooks/useData';
 import { parseLocation } from '@/types';
 import type { TeamStatus } from '@/types';

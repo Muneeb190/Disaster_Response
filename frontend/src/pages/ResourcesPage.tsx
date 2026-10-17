@@ -3,7 +3,7 @@ import { Plus, Package, MapPin, TrendingDown, Edit } from 'lucide-react';
 import { DashboardLayout } from '@/components/dashboard/DashboardLayout';
 import { Modal } from '@/components/ui/Modal';
 import { Skeleton, EmptyState } from '@/components/ui/States';
-import { useToast } from '@/components/ui/Toast';
+import { useToast } from '@/components/ui/toast-context';
 import { useResources, useCreateResource, useUpdateResource } from '@/hooks/useData';
 import { parseLocation } from '@/types';
 import { timeAgo } from '@/lib/utils';

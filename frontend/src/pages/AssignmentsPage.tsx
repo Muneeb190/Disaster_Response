@@ -3,7 +3,7 @@ import { GitBranch, X, Truck, Check } from 'lucide-react';
 import { DashboardLayout } from '@/components/dashboard/DashboardLayout';
 import { AssignmentStatusBadge } from '@/components/ui/Badges';
 import { Skeleton, EmptyState } from '@/components/ui/States';
-import { useToast } from '@/components/ui/Toast';
+import { useToast } from '@/components/ui/toast-context';
 import { useAssignments, useIncidents, useTeams, useResources, useCancelAssignment, useUpdateAssignment } from '@/hooks/useData';
 import type { Assignment } from '@/types';
 import { formatDateTime } from '@/lib/utils';
