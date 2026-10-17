@@ -85,11 +85,11 @@ export function DashboardTopBar({ title, subtitle, children }: { title: string; 
 export function DashboardLayout({ title, subtitle, children, actions }: { title: string; subtitle?: string; children: React.ReactNode; actions?: React.ReactNode }) {
   useRealtimeSync();
   return (
-    <div className="command-app">
-      <DashboardTopBar title={title} subtitle={subtitle}>{actions}</DashboardTopBar>
-      <div className="flex min-h-[calc(100vh-64px)]">
-        <DashboardSidebar />
-        <main className="command-main">{children}</main>
+    <div className="command-app flex min-h-screen">
+      <DashboardSidebar />
+      <div className="flex-1 flex flex-col min-w-0">
+        <DashboardTopBar title={title} subtitle={subtitle}>{actions}</DashboardTopBar>
+        <main className="command-main flex-1">{children}</main>
       </div>
     </div>
   );

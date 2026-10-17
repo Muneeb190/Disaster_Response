@@ -110,11 +110,10 @@
   .command-level { @apply inline-flex items-center gap-2 rounded-md bg-[#fbf2dd] px-3 py-1.5 text-[10px] font-semibold tracking-[.08em] text-[#986b18] whitespace-nowrap; }
   .command-level span { @apply w-1.5 h-1.5 rounded-full bg-[#d69324]; }
   .command-operational { @apply hidden lg:inline-flex items-center gap-2 text-[11px] text-[#6b7975] whitespace-nowrap; }
-  .command-operational span { @apply w-1.5 h-1.5 rounded-full bg-[#187668]; }
   .command-user { @apply flex items-center gap-2 text-[12px] text-[#263433] whitespace-nowrap; }
   .command-user span { @apply w-8 h-8 rounded-full bg-[#e7f0ec] text-[#176c60] flex items-center justify-center text-[10px] font-bold; }
   .command-user strong { @apply hidden md:block font-medium; }
-  .command-sidebar { @apply w-[216px] shrink-0 bg-[#102e2b] text-white flex flex-col min-h-[calc(100vh-64px)] px-3 py-5; }
+  .command-sidebar { @apply w-[216px] shrink-0 bg-[#102e2b] text-white flex flex-col min-h-screen sticky top-0 h-screen overflow-y-auto px-3 py-5 z-20; }
   .command-brand { @apply flex items-center gap-2.5 px-2.5 pb-7; }
   .command-logo { @apply w-8 h-8 rounded-md bg-[#176f63] flex items-center justify-center text-white; }
   .command-brand h1 { @apply text-[16px] font-bold tracking-[.04em]; }
