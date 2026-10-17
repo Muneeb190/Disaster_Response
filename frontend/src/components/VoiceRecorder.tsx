@@ -19,6 +19,32 @@ interface VoiceRecorderProps {
   onLocalAudioSaved: () => void;
 }
 
+interface SpeechRecognitionResultLike {
+  readonly isFinal: boolean;
+  readonly 0: { readonly transcript: string };
+}
+
+interface SpeechRecognitionEventLike extends Event {
+  readonly resultIndex: number;
+  readonly results: ArrayLike<SpeechRecognitionResultLike>;
+}
+
+interface SpeechRecognitionLike {
+  lang: string;
+  continuous: boolean;
+  interimResults: boolean;
+  onresult: ((event: SpeechRecognitionEventLike) => void) | null;
+  onerror: (() => void) | null;
+  onend: (() => void) | null;
+  start(): void;
+  stop(): void;
+}
+
+interface SpeechRecognitionWindow extends Window {
+  SpeechRecognition?: new () => SpeechRecognitionLike;
+  webkitSpeechRecognition?: new () => SpeechRecognitionLike;
+}
+
 const MAX_RECORDING_SECONDS = 55;
 
 function recorderMimeType(): string | null {
@@ -51,6 +77,7 @@ export function VoiceRecorder({
   const [seconds, setSeconds] = useState(0);
   const [requestingMicrophone, setRequestingMicrophone] = useState(false);
   const [playbackBlob, setPlaybackBlob] = useState<Blob | null>(null);
+  const [transcriptText, setTranscriptText] = useState('');
   const [localRecordings, setLocalRecordings] = useState<LocalVoiceRecording[]>([]);
   const playbackUrl = useMemo(
     () => playbackBlob ? URL.createObjectURL(playbackBlob) : null,
@@ -63,6 +90,12 @@ export function VoiceRecorder({
   const streamRef = useRef<MediaStream | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const recordingFailedRef = useRef(false);
+  const speechRecognitionRef = useRef<SpeechRecognitionLike | null>(null);
+  const browserTranscriptRef = useRef('');
+  const browserRecognitionErrorRef = useRef(false);
+  const backendTranscriptionFailedRef = useRef(false);
+  const backendTranscriptionReceivedRef = useRef(false);
+  const fallbackTranscriptAppliedRef = useRef(false);
   const languageRef = useRef(language);
   const mountedRef = useRef(true);
 
@@ -83,6 +116,7 @@ export function VoiceRecorder({
       });
     return () => {
       mountedRef.current = false;
+      speechRecognitionRef.current?.stop();
       streamRef.current?.getTracks().forEach((track) => track.stop());
     };
   }, []);
@@ -124,6 +158,20 @@ export function VoiceRecorder({
     }
   };
 
+  const applyBrowserTranscript = () => {
+    if (!mountedRef.current) return false;
+    const transcript = browserTranscriptRef.current.trim();
+    if (!transcript || backendTranscriptionReceivedRef.current || fallbackTranscriptAppliedRef.current) return false;
+    fallbackTranscriptAppliedRef.current = true;
+    setTranscriptText(transcript);
+    onTranscript(transcript);
+    if (mountedRef.current) {
+      setState('ready');
+      setMessage('Transcript captured by your browser. Review or edit it in the report description.');
+    }
+    return true;
+  };
+
   const processAudio = async (audio: Blob) => {
     setState('transcribing');
     setMessage('Uploading audio securely for transcription...');
@@ -140,21 +188,35 @@ export function VoiceRecorder({
         if (!mountedRef.current) return;
         const result = await getTranscription(created.recordingId);
         if (result.status === 'ready') {
-          if (result.transcript) onTranscript(result.transcript);
+          if (result.transcript) {
+            backendTranscriptionReceivedRef.current = true;
+            setTranscriptText(result.transcript);
+            onTranscript(result.transcript);
+          } else {
+            backendTranscriptionFailedRef.current = true;
+            applyBrowserTranscript();
+          }
           if (mountedRef.current) {
-            setState('ready');
-            setMessage(
-              result.transcript
-                ? `Transcript ready${result.language ? ` (${result.language})` : ''}${result.confidence === null ? '' : `, ${Math.round(result.confidence * 100)}% confidence`}. Review or edit it in the description field.`
-                : 'No speech was detected. Enter a description manually; the audio is attached to your report.'
-            );
+            if (result.transcript) {
+              setState('ready');
+              setMessage(
+                `Transcript ready${result.language ? ` (${result.language})` : ''}. Review or edit it in the report description.`
+              );
+            } else if (!browserTranscriptRef.current.trim()) {
+              setState('ready');
+              setMessage('No speech was detected. Enter a description manually; the audio is attached to your report.');
+            }
           }
           return;
         }
         if (result.status === 'failed') {
+          backendTranscriptionFailedRef.current = true;
+          applyBrowserTranscript();
           if (mountedRef.current) {
-            setState('error');
-            setMessage(`Transcription could not be completed: ${result.error || 'unknown service error'}. You can still submit a written description; the audio reference is saved.`);
+            if (!fallbackTranscriptAppliedRef.current) {
+              setState('error');
+              setMessage(`Transcription could not be completed: ${result.error || 'unknown service error'}. You can still submit a written description; the audio reference is saved.`);
+            }
           }
           return;
         }
@@ -166,18 +228,26 @@ export function VoiceRecorder({
       }
     } catch (error) {
       onUploadingChange(false);
+      backendTranscriptionFailedRef.current = true;
       if (!recordingId) {
         onRecordingId(null);
         await persistLocally(audio);
       }
+      const usedBrowserTranscript = applyBrowserTranscript() || fallbackTranscriptAppliedRef.current;
       if (mountedRef.current) {
+        if (usedBrowserTranscript) return;
         setState('error');
         if (recordingId) {
           setMessage('The audio is saved on the server and attached to your report, but transcription status could not be checked. You can submit the report with a written description.');
         } else if (!navigator.onLine) {
           setMessage('You are offline. The recording was saved on this device if browser storage is available; your report has not reached rescuers.');
         } else {
-          setMessage(error instanceof Error ? error.message : 'Audio upload failed.');
+          const reason = error instanceof Error ? error.message : 'Audio upload failed.';
+          setMessage(
+            browserRecognitionErrorRef.current
+              ? `${reason} Browser speech recognition was unavailable too. Configure VITE_SUPABASE_URL and the Supabase publishable key, then deploy the transcription function with GEMINI_API_KEY to get a transcript.`
+              : `${reason} No browser transcript was available. Configure VITE_SUPABASE_URL and the Supabase publishable key, then deploy the transcription function with GEMINI_API_KEY to get a transcript.`
+          );
         }
       }
     }
@@ -186,6 +256,12 @@ export function VoiceRecorder({
   const startRecording = async () => {
     setMessage(null);
     setSeconds(0);
+    setTranscriptText('');
+    browserTranscriptRef.current = '';
+    browserRecognitionErrorRef.current = false;
+    backendTranscriptionFailedRef.current = false;
+    backendTranscriptionReceivedRef.current = false;
+    fallbackTranscriptAppliedRef.current = false;
     onRecordingId(null);
     const mimeType = recorderMimeType();
     if (!navigator.mediaDevices?.getUserMedia || !mimeType) {
@@ -207,6 +283,40 @@ export function VoiceRecorder({
       mediaRecorderRef.current = recorder;
       chunksRef.current = [];
       recordingFailedRef.current = false;
+      const recognitionWindow = window as SpeechRecognitionWindow;
+      const SpeechRecognition = recognitionWindow.SpeechRecognition ?? recognitionWindow.webkitSpeechRecognition;
+      if (SpeechRecognition) {
+        try {
+          const recognition = new SpeechRecognition();
+          recognition.lang = languageRef.current;
+          recognition.continuous = true;
+          recognition.interimResults = false;
+          recognition.onresult = (event) => {
+            const finalParts: string[] = [];
+            for (let index = 0; index < event.results.length; index += 1) {
+              const result = event.results[index];
+              if (result?.isFinal && result[0]?.transcript.trim()) {
+                finalParts.push(result[0].transcript.trim());
+              }
+            }
+            browserTranscriptRef.current = finalParts.join(' ');
+            if (fallbackTranscriptAppliedRef.current) {
+              setTranscriptText(browserTranscriptRef.current);
+            }
+          };
+          recognition.onerror = () => {
+            browserRecognitionErrorRef.current = true;
+          };
+          recognition.onend = () => {
+            if (backendTranscriptionFailedRef.current) applyBrowserTranscript();
+          };
+          speechRecognitionRef.current = recognition;
+          recognition.start();
+        } catch {
+          speechRecognitionRef.current = null;
+          browserRecognitionErrorRef.current = true;
+        }
+      }
       recorder.addEventListener('dataavailable', (event) => {
         if (event.data.size > 0) chunksRef.current.push(event.data);
       });
@@ -214,6 +324,8 @@ export function VoiceRecorder({
         stream.getTracks().forEach((track) => track.stop());
         streamRef.current = null;
         mediaRecorderRef.current = null;
+        speechRecognitionRef.current?.stop();
+        speechRecognitionRef.current = null;
         if (recordingFailedRef.current) {
           recordingFailedRef.current = false;
           return;
@@ -232,6 +344,8 @@ export function VoiceRecorder({
       }, { once: true });
       recorder.addEventListener('error', () => {
         recordingFailedRef.current = true;
+        speechRecognitionRef.current?.stop();
+        speechRecognitionRef.current = null;
         stream.getTracks().forEach((track) => track.stop());
         streamRef.current = null;
         onUploadingChange(false);
@@ -331,6 +445,14 @@ export function VoiceRecorder({
         </div>
       )}
 
+      {transcriptText && (
+        <div className="mt-4 rounded-lg border border-green-200 bg-green-50 p-4" aria-live="polite">
+          <h3 className="text-sm font-semibold text-green-900">Voice transcript</h3>
+          <p className="mt-2 whitespace-pre-wrap text-sm text-neutral-800">{transcriptText}</p>
+          <p className="mt-2 text-xs text-green-800">This transcript has been added to the editable report description below.</p>
+        </div>
+      )}
+
       {localRecordings.length > 0 && (
         <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-3">
           <p className="text-sm font-semibold text-amber-900">Audio saved on this device only</p>
@@ -339,13 +461,6 @@ export function VoiceRecorder({
             {localRecordings.map((recording) => (
               <li key={recording.id} className="flex flex-wrap items-center gap-3 text-xs">
                 <span className="text-amber-900">{new Date(recording.createdAt).toLocaleString()}</span>
-                <audio
-                  className="h-9 w-full max-w-xs"
-                  controls
-                  preload="none"
-                  src={recordingURLs.get(recording.id)}
-                  aria-label={`Play saved recording from ${new Date(recording.createdAt).toLocaleString()}`}
-                />
                 <a
                   className="inline-flex items-center gap-1 font-semibold text-amber-900 underline"
                   href={recordingURLs.get(recording.id)}

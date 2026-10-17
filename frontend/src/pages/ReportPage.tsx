@@ -45,11 +45,8 @@ export function ReportPage() {
   const createIncident = useCreateIncident();
   const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [submittedCode, setSubmittedCode] = useState<string | null>(null);
-<<<<<<< HEAD
   const [submittedWithVoice, setSubmittedWithVoice] = useState<boolean | null>(null);
-=======
   const [submittedToken, setSubmittedToken] = useState<string | null>(null);
->>>>>>> ecc7ced55c81a8028e12d9ac2c3478026756219f
   const [aiExtracting, setAiExtracting] = useState(false);
   const [aiError, setAiError] = useState<string | null>(null);
   const [aiResults, setAiResults] = useState<Record<string, unknown> | null>(null);

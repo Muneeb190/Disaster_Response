@@ -34,6 +34,7 @@ export interface CreateIncidentResult {
   id: string;
   report_code: string;
   tracking_token: string;
+  voice_recording_id?: string | null;
 }
 
 export interface DashboardSummary {
@@ -106,24 +107,6 @@ export function useIncidentByReportCode(reportCode: string, trackingToken = '') 
 export function useCreateIncident() {
   const queryClient = useQueryClient();
   return useMutation({
-<<<<<<< HEAD
-    mutationFn: (input: CreateIncidentInput) =>
-      api.post<Incident>('/api/incidents', {
-        type: input.type,
-        description: input.description,
-        area_landmark: input.area_landmark || null,
-        people_affected: input.people_affected,
-        people_trapped: input.people_trapped,
-        injuries_reported: input.injuries_reported,
-        vulnerable_people: input.vulnerable_people,
-        danger_increasing: input.danger_increasing,
-        latitude: input.latitude,
-        longitude: input.longitude,
-        reporter_name: input.reporter_name || null,
-        reporter_phone: input.reporter_phone || null,
-        voice_recording_id: input.voice_recording_id || null,
-      }),
-=======
     mutationFn: async (input: CreateIncidentInput) => {
       const { data, error } = await supabase.rpc('submit_public_incident', {
         p_type: input.type,
@@ -138,11 +121,11 @@ export function useCreateIncident() {
         p_longitude: input.longitude,
         p_reporter_name: input.reporter_name || null,
         p_reporter_phone: input.reporter_phone || null,
+        p_voice_recording_id: input.voice_recording_id || null,
       });
       if (error) throw error;
       return data as CreateIncidentResult;
     },
->>>>>>> ecc7ced55c81a8028e12d9ac2c3478026756219f
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['incidents'] });
       queryClient.invalidateQueries({ queryKey: ['dashboard-summary'] });

@@ -14,7 +14,7 @@ supabase/
 
 ## Deploy
 
-Install or invoke the Supabase CLI, authenticate with a scoped personal access token, and run these commands from this `backend` directory:
+Install or invoke the Supabase CLI, authenticate locally with a scoped personal access token, and run these commands from this `backend` directory:
 
 ```bash
 npx supabase link --project-ref gzgdcmzxqlrvazawygtu
@@ -23,19 +23,17 @@ npx supabase functions deploy ai-extract --use-api
 npx supabase functions deploy transcriptions --use-api
 ```
 
-Set `GOOGLE_CLOUD_SPEECH_API_KEY` as a Supabase Edge Function secret before deploying voice transcription:
+Before deploying voice transcription, add `GEMINI_API_KEY` in Supabase Dashboard → Edge Functions → Secrets. The Edge Function sends recordings to Gemini 3.8 Flash for verbatim transcription in the selected language. Never put the key into frontend code, a `VITE_` variable, or a committed file.
 
-```bash
-npx supabase secrets set GOOGLE_CLOUD_SPEECH_API_KEY=YOUR_GOOGLE_CLOUD_API_KEY
-```
+Voice audio is stored in the private `voice-recordings` bucket, and the migration adds a recording reference to incidents. Browser recordings are limited to 55 seconds; the API accepts WebM/Ogg audio up to 10 MB. Local offline recordings remain on the user's device and are not submitted automatically.
 
-The key must be enabled for Google Cloud Speech-to-Text and must never be added to a `VITE_` variable or committed to the repository. Voice audio is stored in the private `voice-recordings` bucket, and the migration adds a recording reference to incidents. Browser recordings are limited to 55 seconds; the API accepts WebM/Ogg audio up to 10 MB and configures `ur-PK` and `en-US` explicitly. Local offline recordings remain on the user's device and are not submitted automatically.
+If an API key has been pasted into chat, a source file, or another shared location, revoke it and create a replacement before saving it as the Supabase secret. Do not paste API keys into chat.
 
-The frontend sends `voice_recording_id` with the existing incident-create request. The deployed incident API must persist that field and include it in its response; the report confirmation warns the user if the API does not confirm the association.
+The frontend sends `voice_recording_id` through the public incident-submission RPC. The voice incident submission migration updates that RPC to persist the reference and return it to the report confirmation.
 
-If the browser reports “Failed to send a request to the Edge Function,” redeploy `transcriptions` and confirm `VITE_SUPABASE_URL` points to the same project. This error indicates the request did not receive an HTTP response (commonly an undeployed function, unreachable project URL, or browser CORS/network block); the updated frontend now shows more detail for HTTP errors. Check the function logs and verify that the migration and `GOOGLE_CLOUD_SPEECH_API_KEY` secret are applied.
+If the browser reports “Failed to send a request to the Edge Function,” redeploy `transcriptions` and confirm `VITE_SUPABASE_URL` points to the same project. This error indicates the request did not receive an HTTP response (commonly an undeployed function, unreachable project URL, or browser CORS/network block); the frontend shows more detail for HTTP errors. Check the function logs and verify that the migration and `GEMINI_API_KEY` secret are applied.
 
-The ResQNet migrations and Edge Functions are deployed to the configured project. Future deployments only apply new migration files. Review and back up important hosted data before making destructive schema changes.
+`supabase/config.toml` identifies the intended project, but migrations and functions must be deployed to your Supabase project before the feature is available. `db push` applies migrations that have not yet been applied. Review and back up important hosted data before making schema changes.
 
 Never commit a personal access token, database password, or service-role key.
 

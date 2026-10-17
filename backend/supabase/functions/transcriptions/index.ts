@@ -12,10 +12,11 @@ const LANGUAGE_CODES = ["ur-PK", "en-US"] as const;
 
 type LanguageCode = typeof LANGUAGE_CODES[number];
 
-interface TranscriptionResult {
-  results?: Array<{
-    languageCode?: string;
-    alternatives?: Array<{ transcript?: string; confidence?: number }>;
+interface GeminiResponse {
+  candidates?: Array<{
+    content?: {
+      parts?: Array<{ text?: string }>;
+    };
   }>;
   error?: { message?: string };
 }
@@ -27,14 +28,6 @@ function jsonResponse(body: unknown, status = 200): Response {
   });
 }
 
-function toBase64(bytes: Uint8Array): string {
-  let binary = "";
-  for (let offset = 0; offset < bytes.length; offset += 0x8000) {
-    binary += String.fromCharCode(...bytes.subarray(offset, offset + 0x8000));
-  }
-  return btoa(binary);
-}
-
 function serviceClient() {
   const url = Deno.env.get("SUPABASE_URL");
   const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
@@ -42,6 +35,15 @@ function serviceClient() {
   return createClient(url, serviceRoleKey, {
     auth: { autoRefreshToken: false, persistSession: false },
   });
+}
+
+function bytesToBase64(bytes: Uint8Array): string {
+  let binary = "";
+  const chunkSize = 0x8000;
+  for (let offset = 0; offset < bytes.length; offset += chunkSize) {
+    binary += String.fromCharCode(...bytes.subarray(offset, offset + chunkSize));
+  }
+  return btoa(binary);
 }
 
 async function processTranscription(
@@ -56,41 +58,45 @@ async function processTranscription(
     const { data: audioFile, error: downloadError } = await client.storage.from(BUCKET).download(storagePath);
     if (downloadError || !audioFile) throw new Error("Could not retrieve the stored recording");
 
-    const encoding = mimeType === "audio/webm" ? "WEBM_OPUS" : "OGG_OPUS";
+    const expectedLanguage = language === "ur-PK" ? "Urdu (Pakistan)" : "English";
+    const audio = bytesToBase64(new Uint8Array(await audioFile.arrayBuffer()));
     const response = await fetch(
-      `https://speech.googleapis.com/v1/speech:recognize?key=${encodeURIComponent(apiKey)}`,
+      "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent",
       {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "x-goog-api-key": apiKey,
+        },
         signal: AbortSignal.timeout(60_000),
         body: JSON.stringify({
-          config: {
-            encoding,
-            sampleRateHertz: 48000,
-            languageCode: language,
-            enableAutomaticPunctuation: true,
-          },
-          audio: { content: toBase64(new Uint8Array(await audioFile.arrayBuffer())) },
+          contents: [{
+            parts: [
+              {
+                text: `Transcribe the entire recording verbatim in ${expectedLanguage}. Preserve the spoken language and original script. Do not translate, summarize, add speaker labels, or include anything except the transcript. If no intelligible speech is present, return an empty response.`,
+              },
+              { inlineData: { mimeType, data: audio } },
+            ],
+          }],
+          generationConfig: { temperature: 0 },
         }),
       },
     );
 
-    const result = await response.json() as TranscriptionResult;
+    const result = await response.json() as GeminiResponse;
     if (!response.ok) {
-      throw new Error(result.error?.message || `Google Speech-to-Text returned ${response.status}`);
+      throw new Error(result.error?.message || `Gemini speech-to-text returned ${response.status}`);
     }
 
-    const transcript = (result.results ?? [])
-      .flatMap((item) => item.alternatives?.[0]?.transcript?.trim() || [])
-      .join(" ")
+    const transcript = (result.candidates?.[0]?.content?.parts || [])
+      .map((part) => part.text || "")
+      .join("")
       .trim();
-    const firstResult = result.results?.find((item) => item.alternatives?.[0]);
-    const confidence = firstResult?.alternatives?.[0]?.confidence;
     const { error: updateError } = await client.from("voice_recordings").update({
       transcription_status: "ready",
       transcript: transcript || null,
-      transcript_language: firstResult?.languageCode || language,
-      transcript_confidence: typeof confidence === "number" ? confidence : null,
+      transcript_language: language,
+      transcript_confidence: null,
       transcription_error: null,
       updated_at: new Date().toISOString(),
     }).eq("id", recordingId);
@@ -115,8 +121,8 @@ Deno.serve(async (req: Request) => {
     const contentType = req.headers.get("content-type") || "";
 
     if (contentType.includes("multipart/form-data")) {
-      const apiKey = Deno.env.get("GOOGLE_CLOUD_SPEECH_API_KEY");
-      if (!apiKey) return jsonResponse({ error: "Speech-to-text is not configured on the server" }, 503);
+      const apiKey = Deno.env.get("GEMINI_API_KEY");
+      if (!apiKey) return jsonResponse({ error: "Gemini speech-to-text is not configured on the server" }, 503);
 
       const form = await req.formData();
       const audio = form.get("audio");
