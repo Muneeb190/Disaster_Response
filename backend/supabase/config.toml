@@ -3,5 +3,9 @@ project_id = "gzgdcmzxqlrvazawygtu"
 [functions.ai-extract]
 verify_jwt = false
 
+<<<<<<< HEAD
 [functions.transcriptions]
+=======
+[functions.invite-role]
+>>>>>>> ecc7ced55c81a8028e12d9ac2c3478026756219f
 verify_jwt = false
