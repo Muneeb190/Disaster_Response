@@ -85,11 +85,13 @@ export function DashboardTopBar({ title, subtitle, children }: { title: string; 
 export function DashboardLayout({ title, subtitle, children, actions }: { title: string; subtitle?: string; children: React.ReactNode; actions?: React.ReactNode }) {
   useRealtimeSync();
   return (
-    <div className="command-app flex min-h-screen">
+    <div className="command-app" style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', minHeight: '100vh' }}>
+      {/* Sidebar occupies its own grid column and spans the full height independently */}
       <DashboardSidebar />
-      <div className="flex-1 flex flex-col min-w-0">
+      {/* Content column: topbar + main, only within this column */}
+      <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0, overflow: 'hidden' }}>
         <DashboardTopBar title={title} subtitle={subtitle}>{actions}</DashboardTopBar>
-        <main className="command-main flex-1">{children}</main>
+        <main className="command-main" style={{ flex: 1, overflowY: 'auto' }}>{children}</main>
       </div>
     </div>
   );

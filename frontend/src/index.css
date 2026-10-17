@@ -99,7 +99,7 @@
 
 @layer components {
   .command-app { @apply min-h-screen bg-[#f4f5f1] text-[#263433]; font-family: 'Inter', system-ui, sans-serif; }
-  .command-topbar { @apply h-16 bg-white border-b border-[#dfe5df] px-6 flex items-center justify-between sticky top-0 z-30; }
+  .command-topbar { @apply h-16 bg-white border-b border-[#dfe5df] px-6 flex items-center justify-between sticky top-0 z-10; }
   .command-top-logo { @apply w-7 h-7 rounded-md bg-[#116b60] text-white flex items-center justify-center; }
   .command-top-brand { @apply text-[19px] font-bold tracking-tight text-[#263433]; }
   .command-divider { @apply h-6 w-px bg-[#dfe5df]; }
@@ -113,7 +113,7 @@
   .command-user { @apply flex items-center gap-2 text-[12px] text-[#263433] whitespace-nowrap; }
   .command-user span { @apply w-8 h-8 rounded-full bg-[#e7f0ec] text-[#176c60] flex items-center justify-center text-[10px] font-bold; }
   .command-user strong { @apply hidden md:block font-medium; }
-  .command-sidebar { @apply w-[216px] shrink-0 bg-[#102e2b] text-white flex flex-col min-h-screen sticky top-0 h-screen overflow-y-auto px-3 py-5 z-20; }
+  .command-sidebar { @apply w-[216px] shrink-0 bg-[#102e2b] text-white flex flex-col px-3 py-5; position: sticky; top: 0; height: 100vh; overflow-y: auto; z-index: 20; align-self: start; }
   .command-brand { @apply flex items-center gap-2.5 px-2.5 pb-7; }
   .command-logo { @apply w-8 h-8 rounded-md bg-[#176f63] flex items-center justify-center text-white; }
   .command-brand h1 { @apply text-[16px] font-bold tracking-[.04em]; }
