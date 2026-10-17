@@ -38,7 +38,17 @@ Deno.serve(async (req: Request) => {
     const supabaseUrl = Deno.env.get("SUPABASE_URL");
     const anonKey = Deno.env.get("SUPABASE_ANON_KEY");
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-    const appUrl = (Deno.env.get("APP_URL") || req.headers.get("origin") || "http://localhost:5173").replace(/\/$/, "");
+    // Send invitees to the app the admin is actually using, but only if that origin is a known app URL.
+    const trim = (value: string) => value.trim().replace(/\/$/, "");
+    const configuredUrl = trim(Deno.env.get("APP_URL") || "http://localhost:5173");
+    const allowedOrigins = new Set([
+      configuredUrl,
+      "http://localhost:5173",
+      "http://127.0.0.1:5173",
+      ...(Deno.env.get("ALLOWED_APP_ORIGINS") || "").split(",").map(trim).filter(Boolean),
+    ]);
+    const origin = trim(req.headers.get("origin") || "");
+    const appUrl = allowedOrigins.has(origin) ? origin : configuredUrl;
     const authorization = req.headers.get("Authorization");
     if (!supabaseUrl || !anonKey || !serviceKey) return json({ error: "Function is not configured" }, 500);
     if (!authorization) return json({ error: "Authentication required" }, 401);
@@ -73,7 +83,7 @@ Deno.serve(async (req: Request) => {
     const { data: existingProfile } = await adminClient
       .from("profiles")
       .select("id,email")
-      .ilike("email", email)
+      .eq("email", email)
       .maybeSingle();
 
     if (existingProfile) {
@@ -83,7 +93,7 @@ Deno.serve(async (req: Request) => {
     }
 
     await adminClient.from("role_invitations").update({ status: "revoked" })
-      .ilike("email", email).eq("role", role).eq("status", "pending");
+      .eq("email", email).eq("role", role).eq("status", "pending");
 
     const rawToken = randomToken();
     const tokenHash = await sha256(rawToken);
@@ -99,22 +109,48 @@ Deno.serve(async (req: Request) => {
     }).select("id").single();
     if (invitationError) throw invitationError;
 
-    const invitationUrl = `${appUrl}/accept-invite?token=${encodeURIComponent(rawToken)}`;
+    // New accounts land with a session but no password, so the accept page asks for one (new=1).
+    const invitationUrl = `${appUrl}/accept-invite?token=${encodeURIComponent(rawToken)}${existingProfile ? "" : "&new=1"}`;
     let emailSent = false;
+    let emailError: string | null = null;
+    let shareUrl: string | null = null;
     let invitedUserId = existingProfile?.id || null;
 
     if (!existingProfile) {
+      const fullName = body.full_name?.trim() || "";
       const { data: invited, error: inviteError } = await adminClient.auth.admin.inviteUserByEmail(email, {
         redirectTo: invitationUrl,
-        data: { full_name: body.full_name?.trim() || "" },
+        data: { full_name: fullName },
       });
-      if (inviteError) {
-        await adminClient.from("role_invitations").update({ status: "revoked" }).eq("id", invitation.id);
-        throw inviteError;
+      if (!inviteError) {
+        emailSent = true;
+        invitedUserId = invited.user?.id || null;
+      } else {
+        // Email delivery failed (SMTP not configured, rate limit, ...): create the account and hand the admin a working link.
+        emailError = inviteError.message;
+        const { data: link, error: linkError } = await adminClient.auth.admin.generateLink({
+          type: "invite",
+          email,
+          options: { redirectTo: invitationUrl, data: { full_name: fullName } },
+        });
+        if (linkError) {
+          await adminClient.from("role_invitations").update({ status: "revoked" }).eq("id", invitation.id);
+          throw linkError;
+        }
+        invitedUserId = link.user?.id || null;
+        shareUrl = link.properties?.action_link || null;
       }
-      emailSent = true;
-      invitedUserId = invited.user?.id || null;
       if (invitedUserId) await adminClient.from("role_invitations").update({ user_id: invitedUserId }).eq("id", invitation.id);
+    } else {
+      // Existing accounts get a sign-in link that returns them to the accept page.
+      const { error: otpError } = await adminClient.auth.signInWithOtp({
+        email,
+        options: { shouldCreateUser: false, emailRedirectTo: invitationUrl },
+      });
+      if (!otpError) emailSent = true;
+      else emailError = otpError.message;
+      // The plain link works for existing users: they sign in with their password, then accept.
+      shareUrl = invitationUrl;
     }
 
     await adminClient.from("audit_logs").insert({
@@ -130,8 +166,9 @@ Deno.serve(async (req: Request) => {
 
     return json({
       invitation_id: invitation.id,
-      invitation_url: invitationUrl,
+      share_url: shareUrl,
       email_sent: emailSent,
+      email_error: emailError,
       existing_user: Boolean(existingProfile),
       expires_at: expiresAt,
     });

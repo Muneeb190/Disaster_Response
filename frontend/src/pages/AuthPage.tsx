@@ -16,7 +16,8 @@ export function AuthPage({ mode }: { mode: 'login' | 'signup' }) {
   const [error, setError] = useState('');
   const [confirmationSent, setConfirmationSent] = useState(false);
 
-  if (!auth.loading && auth.user && mode === 'login') return <Navigate to={homeForRoles(auth.roles)} replace />;
+  const returnTo = (location.state as { from?: string } | null)?.from;
+  if (!auth.loading && auth.user && mode === 'login') return <Navigate to={returnTo || homeForRoles(auth.roles)} replace />;
 
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -38,8 +39,7 @@ export function AuthPage({ mode }: { mode: 'login' | 'signup' }) {
       } else {
         const { error: signInError } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
         if (signInError) throw signInError;
-        const from = (location.state as { from?: string } | null)?.from;
-        navigate(from || '/portal', { replace: true });
+        navigate(returnTo || '/portal', { replace: true });
       }
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'Authentication failed');
