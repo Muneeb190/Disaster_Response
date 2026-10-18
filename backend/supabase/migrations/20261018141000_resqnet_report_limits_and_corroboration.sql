@@ -5,7 +5,6 @@ alter table public.incidents
   add column if not exists corroboration_count int not null default 0,
   add column if not exists corroboration_bonus int not null default 0,
   add column if not exists enriched_from_report_ids uuid[] not null default '{}';
-
 create or replace function private.incident_submission_guard()
 returns trigger language plpgsql security definer set search_path = public, extensions as $$
 declare session_id text := new.ai_extracted ->> 'client_session_id';
@@ -29,7 +28,6 @@ $$;
 drop trigger if exists trg_incident_submission_guard on public.incidents;
 create trigger trg_incident_submission_guard before insert on public.incidents
 for each row execute function private.incident_submission_guard();
-
 create or replace function private.incident_assess_before_write()
 returns trigger language plpgsql security definer set search_path = public, extensions as $$
 declare a jsonb := private.assess_incident(new); base_score int; final_score int;
@@ -51,7 +49,6 @@ begin
   return new;
 end;
 $$;
-
 create or replace function private.corroborate_and_enrich_after_insert()
 returns trigger language plpgsql security definer set search_path = public, extensions as $$
 declare main_id uuid; affected_id uuid; witness_count int;

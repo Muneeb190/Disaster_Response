@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { MapContainer, TileLayer, Marker, Popup, CircleMarker, useMap } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Popup, CircleMarker, GeoJSON, Polyline, useMap } from 'react-leaflet';
 import L from 'leaflet';
+import type { GeoJsonObject } from 'geojson';
 import 'leaflet/dist/leaflet.css';
 import { parseLocation } from '@/types';
-import type { Incident, RescueTeam, Resource, Shelter, TeamStatus } from '@/types';
+import type { DangerZone, Incident, RescueTeam, Resource, Shelter, TeamStatus } from '@/types';
 import { PriorityBadge } from '@/components/ui/Badges';
 import { INCIDENT_TYPE_LABELS, STATUS_LABELS, TEAM_MARKER_COLORS, TEAM_STATUS_LABELS } from '@/types';
 import { timeAgo } from '@/lib/utils';
@@ -30,6 +31,9 @@ const teamIcons = Object.fromEntries(Object.entries(TEAM_MARKER_COLORS).map(([st
 const resourceIcon = makeIcon('#8b5cf6', 'R');
 const shelterIcon = makeIcon('#0891b2', 'S');
 const fullShelterIcon = makeIcon('#64748b', 'S');
+const ISLAMABAD: [number, number] = [33.6844, 73.0479];
+const mapTilerKey = import.meta.env.VITE_MAPTILER_KEY;
+const tileUrl = mapTilerKey ? `https://api.maptiler.com/maps/streets-v2/{z}/{x}/{y}.png?key=${mapTilerKey}` : 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
 
 function FitBounds({ locations }: { locations: (string | null)[] }) {
   const map = useMap();
@@ -58,22 +62,25 @@ interface IncidentMapProps {
   showResources?: boolean;
   showShelters?: boolean;
   height?: string;
+  dangerZones?: DangerZone[];
+  route?: [number, number][];
 }
 
-export function IncidentMap({ incidents = [], teams = [], resources = [], shelters = [], onIncidentClick, showIncidents = true, showTeams = true, showResources = true, showShelters = true, height = '500px' }: IncidentMapProps) {
+export function IncidentMap({ incidents = [], teams = [], resources = [], shelters = [], onIncidentClick, showIncidents = true, showTeams = true, showResources = true, showShelters = true, height = '500px', dangerZones = [], route = [] }: IncidentMapProps) {
   const locations = useMemo(
     () => [...incidents.map((i) => i.location), ...teams.map((t) => t.location), ...resources.map((r) => r.location), ...shelters.map((s) => s.location)],
     [incidents, teams, resources, shelters],
   );
   return (
     <div className="card overflow-hidden" style={{ height }}>
-      {/* World view until FitBounds zooms to the data; no fixed home city. */}
-      <MapContainer center={[20, 0]} zoom={2} style={{ height: '100%', width: '100%' }} scrollWheelZoom>
+      <MapContainer center={ISLAMABAD} zoom={12} style={{ height: '100%', width: '100%' }} scrollWheelZoom>
         <TileLayer
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+          url={tileUrl}
         />
         <FitBounds locations={locations} />
+        {dangerZones.map((zone) => <GeoJSON key={zone.id} data={zone.geojson as GeoJsonObject} pathOptions={{ color: zone.severity === 'critical' ? '#dc2626' : '#ea580c', fillOpacity: zone.verification_status === 'confirmed' ? 0.28 : 0.14, dashArray: zone.verification_status === 'provisional' ? '6 6' : undefined }}><Popup><strong>{zone.name}</strong><br />{zone.verification_status === 'provisional' ? 'Unverified public report' : 'Confirmed danger zone'}<br />{zone.instructions}</Popup></GeoJSON>)}
+        {route.length > 1 && <Polyline positions={route} pathOptions={{ color: '#2563eb', weight: 6, opacity: 0.85 }} />}
 
         {showIncidents && incidents.map((inc) => {
           const pos = parseLocation(inc.location);
@@ -169,7 +176,7 @@ export function IncidentMap({ incidents = [], teams = [], resources = [], shelte
 
 // A simpler map for picking a location (report form)
 export function LocationPicker({ onPick, initialPos, center: viewCenter }: { onPick: (lat: number, lng: number) => void; initialPos?: [number, number]; center?: [number, number] }) {
-  const center = initialPos || viewCenter || [28.61, 77.2];
+  const center = initialPos || viewCenter || ISLAMABAD;
   const [locateRequest, setLocateRequest] = useState(1);
   const [locationStatus, setLocationStatus] = useState<'locating' | 'found' | 'unavailable'>('locating');
   return (
@@ -188,7 +195,7 @@ export function LocationPicker({ onPick, initialPos, center: viewCenter }: { onP
         <MapContainer center={center} zoom={12} style={{ height: '100%', width: '100%' }} scrollWheelZoom>
           <TileLayer
             attribution='&copy; OpenStreetMap contributors'
-            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+            url={tileUrl}
           />
           <LocationClickHandler onPick={onPick} initialPos={initialPos} locateRequest={locateRequest} onLocationStatus={setLocationStatus} />
         </MapContainer>
@@ -260,7 +267,7 @@ export function MiniMap({ position, height = '250px' }: { position: [number, num
       <MapContainer center={position} zoom={14} style={{ height: '100%', width: '100%' }} scrollWheelZoom>
         <TileLayer
           attribution='&copy; OpenStreetMap contributors'
-          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+          url={tileUrl}
         />
         <CircleMarker center={position} radius={12} pathOptions={{ color: '#dc2626', fillColor: '#dc2626', fillOpacity: 0.4 }} />
         <Marker position={position} icon={incidentIcons.critical} />

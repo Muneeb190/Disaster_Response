@@ -39,7 +39,7 @@ function extractFromText(text: string): ExtractResult {
   const vulnerable_people = lower.match(/\b(elder|old (?:man|woman|person)|child|baby|infant|disabled|wheelchair|cannot walk|pregnant|sick|bedridden)\b/) ? "yes" : "unknown";
   const danger_increasing = lower.match(/\b(rising|worsening|getting worse|spreading|increasing|growing|flood(?:ing)? (?:is |is )?(?:still )?rising|water (?:is )?entering|breaking|breach|deteriorat)\b/) ? "yes" : "unknown";
 
-  const numberMatch = lower.match(/\b(\d+|one|two|three|four|five|six|seven|eight|nine|ten)\s*(?:people|persons?|individuals?|families?|kids?|children|adults?|men|women|workers?|residents?|victims?)\b/);
+  const numberMatch = lower.match(/\b(\d+|one|two|three|four|five|six|seven|eight|nine|ten)\s+(?:(?:injured|trapped|affected|missing|stranded|sick|elderly|young)\s+)?(?:people|persons?|individuals?|families?|kids?|children|adults?|men|women|workers?|residents?|victims?)\b/);
   const wordNumbers: Record<string, number> = { one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10 };
   const people_affected = numberMatch ? (/^\d+$/.test(numberMatch[1]) ? parseInt(numberMatch[1], 10) : wordNumbers[numberMatch[1]]) : null;
   const needPatterns: Array<[string, RegExp]> = [

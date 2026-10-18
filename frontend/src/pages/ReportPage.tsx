@@ -11,6 +11,7 @@ import { LoadingSpinner } from '@/components/ui/States';
 import { Modal } from '@/components/ui/Modal';
 import { pickFollowupQuestion, type FollowupQuestion } from '@/lib/followup';
 import { VoiceRecorder } from '@/components/VoiceRecorder';
+import { reverseGeocode } from '@/lib/geocoding';
 import type { IncidentType, TriState, VoiceTranscription } from '@/types';
 
 const schema = z.object({
@@ -46,6 +47,7 @@ export function ReportPage() {
   const { toast } = useToast();
   const createIncident = useCreateIncident();
   const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(null);
+  const [locationName, setLocationName] = useState('');
   const [submittedCode, setSubmittedCode] = useState<string | null>(null);
   const [submittedToken, setSubmittedToken] = useState<string | null>(null);
   const [aiExtracting, setAiExtracting] = useState(false);
@@ -78,9 +80,20 @@ export function ReportPage() {
 
   const description = watch('description');
 
+  const selectLocation = async (lat: number, lng: number) => {
+    setCoords({ lat, lng });
+    setLocationName('Identifying area…');
+    try {
+      const name = await reverseGeocode(lat, lng);
+      setLocationName(name);
+      if (!watch('area_landmark')) setValue('area_landmark', name, { shouldDirty: true });
+    } catch {
+      setLocationName('Selected location');
+    }
+  };
   const applyVoiceResult = (result: VoiceTranscription) => {
     setVoiceResult(result);
-    setValue('description', result.transcript, { shouldValidate: true });
+    setValue('description', result.english_translation || result.transcript, { shouldValidate: true });
     setValue('type', result.incident_category);
     if (result.people_affected !== null) setValue('people_affected', result.people_affected);
     for (const field of ['people_trapped', 'injuries_reported', 'vulnerable_people', 'danger_increasing'] as const) {
@@ -186,9 +199,9 @@ export function ReportPage() {
         followup_answer: asked?.answer ?? null,
         followup_skipped: asked !== null && asked.answer === null,
         input_mode: voiceResult ? 'voice' : 'text',
-        voice_transcript: voiceResult?.transcript ?? null,
+        voice_transcript: voiceResult ? (voiceResult.english_translation || voiceResult.transcript) : null,
         transcript_language: voiceResult?.language ?? null,
-        transcript_english: voiceResult?.english_translation ?? null,
+        transcript_english: voiceResult ? (voiceResult.english_translation || voiceResult.transcript) : null,
         voice_recording_id: voiceRecordingId,
       });
       setSubmittedCode(incident.report_code);
@@ -373,11 +386,11 @@ export function ReportPage() {
             <label className="label">
               Location <span className="text-error">*</span> — <span className="text-neutral-400 font-normal">Detected automatically; tap or drag the pin to correct it</span>
             </label>
-            <LocationPicker onPick={(lat, lng) => setCoords({ lat, lng })} />
+            <LocationPicker onPick={(lat, lng) => void selectLocation(lat, lng)} />
             {coords && (
               <div className="mt-2 flex items-center gap-2 text-xs text-green-700">
                 <MapPin size={14} />
-                Pinned: {coords.lat.toFixed(4)}, {coords.lng.toFixed(4)}
+                {locationName || 'Selected location'}
               </div>
             )}
           </div>

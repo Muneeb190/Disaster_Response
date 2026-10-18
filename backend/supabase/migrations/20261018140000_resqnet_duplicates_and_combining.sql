@@ -8,19 +8,15 @@ keeps every report independently reviewable and reversible.
 */
 
 create extension if not exists pg_trgm with schema extensions;
-
 alter table public.incidents
   add column if not exists primary_incident_id uuid references public.incidents(id) on delete set null,
   add column if not exists linked_at timestamptz,
   add column if not exists linked_by uuid references public.profiles(id) on delete set null;
-
 create index if not exists idx_incidents_primary_incident on public.incidents(primary_incident_id);
-
 do $$ begin
   alter table public.incidents add constraint incidents_not_own_primary
     check (primary_incident_id is null or primary_incident_id <> id);
 exception when duplicate_object then null; end $$;
-
 create table if not exists public.incident_duplicate_candidates (
   incident_a_id uuid not null references public.incidents(id) on delete cascade,
   incident_b_id uuid not null references public.incidents(id) on delete cascade,
@@ -37,7 +33,6 @@ create table if not exists public.incident_duplicate_candidates (
   check (incident_a_id::text < incident_b_id::text)
 );
 create index if not exists idx_duplicate_candidates_status on public.incident_duplicate_candidates(status, score desc);
-
 create or replace function public.refresh_duplicate_candidates(p_incident_id uuid)
 returns void
 language plpgsql
@@ -87,7 +82,6 @@ begin
   where public.incident_duplicate_candidates.status in ('suggested', 'unlinked');
 end;
 $$;
-
 create or replace function public.detect_incident_duplicates()
 returns trigger language plpgsql security definer set search_path = public, extensions as $$
 begin
@@ -98,7 +92,6 @@ $$;
 drop trigger if exists trg_detect_incident_duplicates on public.incidents;
 create trigger trg_detect_incident_duplicates
 after insert on public.incidents for each row execute function public.detect_incident_duplicates();
-
 create or replace function public.get_duplicate_candidates(p_incident_id uuid)
 returns table (
   incident_id uuid, report_code text, type public.incident_type, description text,
@@ -121,7 +114,6 @@ begin
   order by d.score desc, d.distance_m asc;
 end;
 $$;
-
 create or replace function public.link_duplicate_report(p_source_incident_id uuid, p_primary_incident_id uuid)
 returns void language plpgsql security definer set search_path = public, extensions as $$
 declare root_id uuid; source_code text; primary_code text;
@@ -153,7 +145,6 @@ begin
     'Duplicate report combined with primary incident');
 end;
 $$;
-
 create or replace function public.unlink_duplicate_report(p_source_incident_id uuid)
 returns void language plpgsql security definer set search_path = public, extensions as $$
 declare old_primary uuid; source_code text;
@@ -177,7 +168,6 @@ begin
     'Report separated from combined incident');
 end;
 $$;
-
 create or replace function public.reject_linked_report_assignment()
 returns trigger language plpgsql set search_path = public as $$
 begin
@@ -190,12 +180,10 @@ $$;
 drop trigger if exists trg_reject_linked_report_assignment on public.assignments;
 create trigger trg_reject_linked_report_assignment
 before insert on public.assignments for each row execute function public.reject_linked_report_assignment();
-
 alter table public.incident_duplicate_candidates enable row level security;
 create policy duplicate_candidates_admin_all on public.incident_duplicate_candidates
 for all to authenticated using (private.is_admin()) with check (private.is_admin());
 grant select, insert, update, delete on public.incident_duplicate_candidates to authenticated;
-
 revoke execute on function public.refresh_duplicate_candidates(uuid) from public, anon, authenticated;
 revoke execute on function public.get_duplicate_candidates(uuid) from public, anon;
 revoke execute on function public.link_duplicate_report(uuid, uuid) from public, anon;
@@ -203,7 +191,6 @@ revoke execute on function public.unlink_duplicate_report(uuid) from public, ano
 grant execute on function public.get_duplicate_candidates(uuid) to authenticated;
 grant execute on function public.link_duplicate_report(uuid, uuid) to authenticated;
 grant execute on function public.unlink_duplicate_report(uuid) to authenticated;
-
 -- Generate suggestions for reports that already exist when this migration runs.
 do $$ declare incident_row record; begin
   for incident_row in select id from public.incidents where primary_incident_id is null loop

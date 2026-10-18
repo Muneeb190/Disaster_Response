@@ -1,15 +1,16 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Users, Package, ArrowUpRight, Check, TriangleAlert, FileText, House, BellRing } from 'lucide-react';
+import { Users, Package, ArrowUpRight, Check, TriangleAlert, FileText, House, BellRing, Volume2 } from 'lucide-react';
 import { DashboardLayout } from '@/components/dashboard/DashboardLayout';
 import { IncidentMap } from '@/components/map/IncidentMap';
 import { DemoBadge, PriorityBadge } from '@/components/ui/Badges';
 import { Skeleton, EmptyState } from '@/components/ui/States';
-import { useDashboardSummary, useIncidents, useTeams, useResources, useShelters, useAlerts, useAssignments, useAcknowledgeAlert, useDemoPresence } from '@/hooks/useData';
+import { useDashboardSummary, useIncidents, useTeams, useResources, useShelters, useAlerts, useAssignments, useAcknowledgeAlert, useDemoPresence, useDangerZones } from '@/hooks/useData';
 import { useOperationArea, localTimeZoneLabel } from '@/lib/region';
 import { useToast } from '@/components/ui/toast-context';
 import { timeAgo } from '@/lib/utils';
 import { ALERT_TYPE_LABELS, TEAM_MARKER_COLORS, TEAM_STATUS_LABELS, type TeamStatus } from '@/types';
+import { enableBrowserNotifications } from '@/lib/notifications';
 
 function useNow(intervalMs = 1000) {
   const [now, setNow] = useState(() => Date.now());
@@ -32,10 +33,11 @@ export function DashboardPage() {
   const resources = useResources();
   const shelters = useShelters();
   const alerts = useAlerts();
+  const dangerZones = useDangerZones();
   const assignments = useAssignments();
   const ackAlert = useAcknowledgeAlert();
   const [alertTab, setAlertTab] = useState<'latest' | 'unack' | 'ack'>('latest');
-  const [layers, setLayers] = useState({ incidents: true, teams: true, shelters: true, supplies: true });
+  const [layers, setLayers] = useState({ incidents: true, dangerZones: true, teams: true, shelters: true, supplies: true });
 
   const openIncidents = useMemo(() => (incidents.data ?? []).filter((i) => !['resolved', 'cancelled'].includes(i.status)), [incidents.data]);
   const criticalUnassigned = openIncidents.filter((i) => i.priority_level === 'critical' && ['reported', 'verified'].includes(i.status));
@@ -66,6 +68,11 @@ export function DashboardPage() {
     }
   };
 
+  const enableNotifications = async () => {
+    try { await enableBrowserNotifications(); toast('Browser notifications enabled', 'success'); }
+    catch (error) { toast(error instanceof Error ? error.message : 'Could not enable notifications', 'error'); }
+  };
+
   const kpis = [
     { label: 'Active incidents', value: summary.data?.openIncidents ?? 0, detail: `${summary.data?.criticalIncidents ?? 0} critical`, icon: TriangleAlert, tone: 'red', trend: `${summary.data?.reportedLastHour ?? 0} reported in the last hour` },
     { label: 'Teams available', value: `${teamCounts.available ?? 0} / ${teams.data?.length ?? 0}`, detail: 'ready to dispatch', icon: Users, tone: 'teal', trend: `${teamCounts.assigned ?? 0} busy · ${teamCounts.en_route ?? 0} travelling · ${(teamCounts.unavailable ?? 0) + (teamCounts.offline ?? 0)} out` },
@@ -86,6 +93,7 @@ export function DashboardPage() {
             <span>{syncedAgo === null ? 'Waiting for data…' : `Last synced ${syncedAgo}s ago`}</span>
           </div>
           <button className="command-button command-button-light" onClick={() => navigate('/reports/summary')}><FileText size={14} /> Situation report</button>
+          <button className="command-button command-button-light" onClick={() => void enableNotifications()}><Volume2 size={14} /> Browser alerts</button>
           <button className="command-button command-button-teal" onClick={() => navigate('/report')}><span className="text-lg leading-none">+</span> Log incident</button>
         </div>
       </div>
@@ -109,12 +117,13 @@ export function DashboardPage() {
         <section className="command-panel command-map-panel">
           <div className="command-panel-heading"><div><h2>Response map <span>{openIncidents.length} OPEN {openIncidents.length === 1 ? 'INCIDENT' : 'INCIDENTS'}</span></h2></div></div>
           <div className="command-map-controls">
-            {([['incidents', 'Incidents'], ['teams', 'Teams'], ['shelters', 'Shelters'], ['supplies', 'Supplies']] as const).map(([key, label]) => (
+            {([['incidents', 'Incidents'], ['dangerZones', 'Danger zones'], ['teams', 'Teams'], ['shelters', 'Shelters'], ['supplies', 'Supplies']] as const).map(([key, label]) => (
               <label key={key}><input type="checkbox" checked={layers[key]} onChange={(e) => setLayers((current) => ({ ...current, [key]: e.target.checked }))} /> {label}</label>
             ))}
           </div>
           {incidents.isLoading || teams.isLoading || resources.isLoading || shelters.isLoading ? <Skeleton className="w-full h-[430px] rounded-none" /> : (
             <IncidentMap incidents={openIncidents} teams={teams.data ?? []} resources={resources.data ?? []} shelters={shelters.data ?? []}
+              dangerZones={layers.dangerZones ? dangerZones.data ?? [] : []}
               showIncidents={layers.incidents} showTeams={layers.teams} showShelters={layers.shelters} showResources={layers.supplies}
               onIncidentClick={(id) => navigate(`/incidents/${id}`)} height="430px" />
           )}

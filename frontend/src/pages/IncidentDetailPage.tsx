@@ -21,8 +21,8 @@ import { parseLocation, INCIDENT_TYPE_LABELS, STATUS_LABELS, VERIFICATION_LABELS
 import type { Incident, IncidentStatus, IncidentType, PriorityLevel, TriState, VerificationStatus } from '@/types';
 import { formatDateTime, timeAgo } from '@/lib/utils';
 import { TranscriptText } from '@/components/incident/TranscriptText';
-import { LANGUAGE_LABELS } from '@/types';
 import { DuplicateReportsPanel } from '@/components/incident/DuplicateReportsPanel';
+import { EvacuationRoutePanel } from '@/components/incident/EvacuationRoutePanel';
 
 const errorMessage = (err: unknown, fallback: string) => (err instanceof Error ? err.message : fallback);
 
@@ -224,15 +224,9 @@ export function IncidentDetailPage() {
             {inc.input_mode === 'voice' && inc.voice_transcript && (
               <div className="mt-3 rounded-lg border border-blue-100 bg-blue-50 p-3">
                 <p className="mb-1 text-xs font-semibold text-blue-700">
-                  Original voice transcript{inc.transcript_language ? ` · ${LANGUAGE_LABELS[inc.transcript_language]}` : ''}
+                  English voice transcript
                 </p>
-                <TranscriptText text={inc.voice_transcript} language={inc.transcript_language} className="text-sm text-neutral-800" />
-                {inc.transcript_language !== 'en' && inc.transcript_english && (
-                  <div className="mt-3 border-t border-blue-100 pt-2">
-                    <p className="mb-1 text-xs font-medium text-blue-700">English translation</p>
-                    <p className="text-sm text-neutral-700">{inc.transcript_english}</p>
-                  </div>
-                )}
+                <TranscriptText text={inc.transcript_english || inc.voice_transcript} language="en" className="text-sm text-neutral-800" />
               </div>
             )}
             {inc.area_landmark && (
@@ -268,6 +262,7 @@ export function IncidentDetailPage() {
           </div>
 
           <DuplicateReportsPanel incident={inc} />
+          <EvacuationRoutePanel incident={inc} />
 
           {/* Reported conditions */}
           <div className="card card-body">
