@@ -27,11 +27,11 @@ export function HomePage() {
             </Link>
 
             <div className="mt-3 divide-y divide-line overflow-hidden rounded-panel border border-line bg-surface">
-              <Link to="/status" className="flex items-start gap-4 px-5 py-4 hover:bg-neutral-50">
+              <Link to="/status" className="flex items-start gap-4 bg-primary-600/[0.06] px-5 py-4 transition-colors hover:bg-primary-600/[0.1] focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-inset focus-visible:ring-primary-600">
                 <Search size={22} aria-hidden="true" className="mt-0.5 shrink-0 text-primary-600" />
                 <span><span className="block font-semibold">{t('home.track')}</span><span className="block text-[15px] text-neutral-500">{t('home.trackHint')}</span></span>
               </Link>
-              <Link to="/register-at-risk" className="flex items-start gap-4 px-5 py-4 hover:bg-neutral-50">
+              <Link to="/register-at-risk" className="flex items-start gap-4 bg-primary-600/[0.06] px-5 py-4 transition-colors hover:bg-primary-600/[0.1] focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-inset focus-visible:ring-primary-600">
                 <UserPlus size={22} aria-hidden="true" className="mt-0.5 shrink-0 text-primary-600" />
                 <span><span className="block font-semibold">{t('home.register')}</span><span className="block text-[15px] text-neutral-500">{t('home.registerHint')}</span></span>
               </Link>

@@ -23,10 +23,16 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
   const dismiss = (id: number) => setToasts((prev) => prev.filter((t) => t.id !== id));
 
   const icons = {
-    success: <CheckCircle size={20} aria-hidden="true" className="text-[#7FD1A8]" />,
-    error: <XCircle size={20} aria-hidden="true" className="text-[#FF9A8F]" />,
-    warning: <AlertCircle size={20} aria-hidden="true" className="text-[#F5C46B]" />,
-    info: <Info size={20} aria-hidden="true" className="text-flood" />,
+    success: <CheckCircle size={20} aria-hidden="true" className="text-success" />,
+    error: <XCircle size={20} aria-hidden="true" className="text-critical" />,
+    warning: <AlertCircle size={20} aria-hidden="true" className="text-moderate" />,
+    info: <Info size={20} aria-hidden="true" className="text-primary-600" />,
+  };
+  const toastStyles = {
+    success: 'border-l-4 border-l-success',
+    error: 'border-l-4 border-l-critical',
+    warning: 'border-l-4 border-l-moderate',
+    info: 'border-l-4 border-l-primary-600',
   };
 
   return (
@@ -36,11 +42,11 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
         {toasts.map((t) => (
           <div
             key={t.id}
-            className={cn('flex w-full max-w-sm animate-fade-in items-start gap-3 rounded-panel bg-ink px-4 py-3 text-white shadow-lift', t.type === 'error' && 'ring-2 ring-[#FF9A8F]/60')}
+            className={cn('flex w-full max-w-sm animate-fade-in items-start gap-3 rounded-panel border border-line bg-surface px-4 py-3 text-ink shadow-lift', toastStyles[t.type])}
           >
             {icons[t.type]}
             <p className="flex-1 text-[15px]">{t.message}</p>
-            <button onClick={() => dismiss(t.id)} className="rounded p-0.5 text-[#C9D6D4] hover:text-white" aria-label="Dismiss">
+            <button onClick={() => dismiss(t.id)} className="rounded p-0.5 text-neutral-500 transition-colors hover:text-ink" aria-label="Dismiss">
               <X size={16} />
             </button>
           </div>

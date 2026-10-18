@@ -4,7 +4,7 @@ export type Lang = 'en' | 'ur';
 
 // Public screens only. Coordinator and responder screens stay in English.
 const en = {
-  'brand.place': 'Islamabad disaster response',
+  'brand.place': 'Disaster response',
   'nav.report': 'Report emergency',
   'nav.track': 'Track a report',
   'nav.signin': 'Staff sign in',

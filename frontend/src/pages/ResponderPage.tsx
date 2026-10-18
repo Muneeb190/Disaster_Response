@@ -45,7 +45,8 @@ const REQUIRED_EQUIPMENT: Record<Incident['type'], string[]> = {
 // A status tap never waits on location: a failed fix still sends the update, just without GPS.
 async function browserLocation(): Promise<ResponderLocation | null> {
   const result = await locate();
-  return result.ok ? { latitude: result.latitude, longitude: result.longitude, accuracy: result.accuracy } : null;
+  if (!result.ok || (result.accuracy !== null && (result.accuracy < 0 || result.accuracy > 10_000))) return null;
+  return { latitude: result.latitude, longitude: result.longitude, accuracy: result.accuracy };
 }
 
 export function ResponderPage() {
