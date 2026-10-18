@@ -1,15 +1,16 @@
 import { useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import {
-  ArrowLeft, ArrowRight, Check, X, AlertTriangle, RefreshCw, Siren, Users,
-  MapPin, Clock, FileText, AlertOctagon, ShieldCheck, PencilLine, CheckCircle2, MessageCircleQuestion
+  ArrowLeft, ArrowRight, Check, X, AlertTriangle, RefreshCw, Users,
+  MapPin, Clock, FileText, ShieldCheck, PencilLine, CheckCircle2, MessageCircleQuestion
 } from 'lucide-react';
 import { DashboardLayout } from '@/components/dashboard/DashboardLayout';
+import { PriorityGauge } from '@/components/ui/PriorityGauge';
 import { MiniMap } from '@/components/map/IncidentMap';
 import { IncidentTimeline } from '@/components/incident/IncidentTimeline';
 import { SuitableShelters } from '@/components/incident/SuitableShelters';
 import { WhyPriorityPanel, ConfidenceBadge, ConfidencePanel, UrgentCheckBadge } from '@/components/incident/PriorityPanels';
-import { DemoBadge, PriorityBadge, StatusBadge, VerificationBadge, TriStateBadge, TeamStatusBadge, AssignmentStatusBadge } from '@/components/ui/Badges';
+import { DemoBadge, StatusBadge, VerificationBadge, TriStateBadge, TeamStatusBadge, AssignmentStatusBadge } from '@/components/ui/Badges';
 import { Modal, ConfirmDialog, ReasonDialog } from '@/components/ui/Modal';
 import { Skeleton, EmptyState, LoadingSpinner, ErrorState } from '@/components/ui/States';
 import { useToast } from '@/components/ui/toast-context';
@@ -146,10 +147,10 @@ export function IncidentDetailPage() {
   return (
     <DashboardLayout
       title={inc.report_code}
-      subtitle={`${INCIDENT_TYPE_LABELS[inc.type]} — reported ${timeAgo(inc.created_at)}`}
+      subtitle={`${INCIDENT_TYPE_LABELS[inc.type]}${inc.area_landmark ? `, ${inc.area_landmark}` : ''}. Reported ${timeAgo(inc.created_at)}.`}
       actions={
         <Link to="/incidents" className="btn-ghost btn-sm">
-          <ArrowLeft size={16} /> Back to list
+          <ArrowLeft size={16} aria-hidden="true" />All incidents
         </Link>
       }
     >
@@ -158,23 +159,21 @@ export function IncidentDetailPage() {
         <div className="lg:col-span-2 space-y-4">
           {/* Priority + status card */}
           <div className="card card-body">
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-3">
-                <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${inc.life_threatening ? 'bg-red-50' : 'bg-blue-50'}`}>
-                  {inc.life_threatening ? <AlertOctagon size={24} className="text-red-600" /> : <Siren size={24} className="text-blue-600" />}
-                </div>
-                <div>
-                  <div className="flex items-center gap-2 mb-1 flex-wrap">
-                    <PriorityBadge level={inc.priority_level} />
-                    <span className="text-lg font-bold text-neutral-800">{inc.priority_score}/100</span>
+            <div className="mb-4 flex flex-wrap items-start justify-between gap-4">
+              <div className="flex items-end gap-5">
+                <PriorityGauge score={inc.priority_score} level={inc.priority_level} size="lg" />
+                <div className="pb-1">
+                  <div className="flex flex-wrap items-center gap-2">
                     <ConfidenceBadge level={inc.confidence_level} score={inc.confidence_score} />
                     {inc.needs_urgent_check && <UrgentCheckBadge />}
+                    {inc.incident_origin === 'proactive_check' && <span className="badge-info">Welfare check, nobody reported</span>}
+                    {inc.is_proxy_report && <span className="badge-neutral">Reported for someone else{inc.proxy_relationship ? ` (${inc.proxy_relationship})` : ''}</span>}
                     {inc.is_demo && <DemoBadge />}
                   </div>
-                  <p className="text-xs text-neutral-400">Risk score — decision support only</p>
+                  <p className="mt-2 text-sm text-neutral-500">Score out of 100. It supports your judgment and never replaces it.</p>
                 </div>
               </div>
-              <div className="flex flex-col items-end gap-1">
+              <div className="flex flex-col items-end gap-1.5">
                 <StatusBadge status={inc.status} />
                 <VerificationBadge status={inc.verification_status} />
               </div>
@@ -185,16 +184,16 @@ export function IncidentDetailPage() {
             </div>
 
             {inc.life_threatening && (
-              <div className="flex items-center gap-2 text-xs text-red-700 bg-red-50 rounded-lg p-2.5 mb-3 border border-red-100">
-                <AlertTriangle size={14} />
-                Flagged for urgent review: immediate danger to life reported. Score is decision support only — coordinator judgment required.
+              <div className="mb-3 flex items-center gap-2 rounded-control border border-critical-line bg-critical-soft p-3 text-[15px] text-critical">
+                <AlertTriangle size={18} aria-hidden="true" className="shrink-0" />
+                Danger to life was reported. Review this one yourself before anything else.
               </div>
             )}
 
             {/* Action buttons */}
             <div className="flex flex-wrap gap-2">
               <button className="btn-secondary btn-sm" onClick={handleRecalculate} disabled={recalcPriority.isPending}>
-                <RefreshCw size={14} /> Recalculate Priority
+                <RefreshCw size={14} aria-hidden="true" />Recalculate priority
               </button>
               <button className="btn-secondary btn-sm" onClick={() => setFactsModal(true)} disabled={updateIncident.isPending}>
                 <PencilLine size={14} /> Update facts
@@ -221,7 +220,7 @@ export function IncidentDetailPage() {
 
           {/* Description */}
           <div className="card card-body">
-            <h3 className="text-sm font-semibold text-neutral-700 mb-2 flex items-center gap-2">
+            <h3 className="mb-2 flex items-center gap-2 font-display text-lg font-semibold">
               <FileText size={14} /> Description
             </h3>
             <p className="text-sm text-neutral-700 leading-relaxed">{inc.description}</p>
@@ -267,7 +266,7 @@ export function IncidentDetailPage() {
 
           {/* Reported conditions */}
           <div className="card card-body">
-            <h3 className="text-sm font-semibold text-neutral-700 mb-3">Reported Conditions</h3>
+            <h3 className="mb-3 font-display text-lg font-semibold">Reported Conditions</h3>
             <div className="flex flex-wrap gap-2">
               <TriStateBadge value={inc.people_trapped} label="People Trapped" />
               <TriStateBadge value={inc.injuries_reported} label="Injuries" />
@@ -283,7 +282,7 @@ export function IncidentDetailPage() {
           {/* Map */}
           {pos && (
             <div>
-              <h3 className="text-sm font-semibold text-neutral-700 mb-2">Location</h3>
+              <h3 className="mb-2 font-display text-lg font-semibold">Location</h3>
               <MiniMap position={pos} />
             </div>
           )}
@@ -346,15 +345,15 @@ export function IncidentDetailPage() {
                       <div key={rec.team_id} className={`rounded-lg p-2.5 border ${i === 0 ? 'border-green-300 bg-green-50' : 'border-neutral-200 bg-neutral-50'}`}>
                         <div className="flex items-center justify-between mb-1">
                           <div className="flex items-center gap-2">
-                            {i === 0 && <span className="badge-success text-[10px]">Best match</span>}
+                            {i === 0 && <span className="badge-success text-xs">Best match</span>}
                             <span className="text-xs font-medium text-neutral-700">{rec.team_name}</span>
-                            <span className="text-[10px] text-neutral-400">{rec.team_code}</span>
+                            <span className="text-xs text-neutral-400">{rec.team_code}</span>
                           </div>
                           <span className="text-xs text-neutral-500">{rec.distance_km} km</span>
                         </div>
-                        <p className="text-[10px] text-neutral-500">{rec.recommendation_reason}</p>
-                        {rec.missing_equipment.length > 0 && <p className="text-[10px] font-medium text-red-600 mt-1">Missing equipment: {rec.missing_equipment.join(', ')}</p>}
-                        {rec.capacity_gap > 0 && <p className="text-[10px] font-medium text-amber-700">Capacity shortfall: {rec.capacity_gap} people</p>}
+                        <p className="text-xs text-neutral-500">{rec.recommendation_reason}</p>
+                        {rec.missing_equipment.length > 0 && <p className="text-xs font-medium text-red-600 mt-1">Missing equipment: {rec.missing_equipment.join(', ')}</p>}
+                        {rec.capacity_gap > 0 && <p className="text-xs font-medium text-amber-700">Capacity shortfall: {rec.capacity_gap} people</p>}
                       </div>
                     ))}
                     <TeamEtaPanel incident={inc} teams={teams.data ?? []} recommendations={recommendations.data} />
@@ -387,7 +386,7 @@ export function IncidentDetailPage() {
           {/* Reporter info */}
           {(inc.reporter_name || inc.reporter_phone) && (
             <div className="card card-body">
-              <h3 className="text-sm font-semibold text-neutral-700 mb-2">Reporter (Confidential)</h3>
+              <h3 className="mb-2 font-display text-lg font-semibold">Reporter (Confidential)</h3>
               <div className="space-y-1 text-xs text-neutral-600">
                 {inc.reporter_name && <p>Name: {inc.reporter_name}</p>}
                 {inc.reporter_phone && <p>Phone: {inc.reporter_phone}</p>}
@@ -399,7 +398,7 @@ export function IncidentDetailPage() {
 
           {/* Verification controls */}
           <div className="card card-body">
-            <h3 className="text-sm font-semibold text-neutral-700 mb-3 flex items-center gap-2">
+            <h3 className="mb-3 flex items-center gap-2 font-display text-lg font-semibold">
               <ShieldCheck size={14} /> Verification
             </h3>
             <div className="flex flex-wrap gap-2">

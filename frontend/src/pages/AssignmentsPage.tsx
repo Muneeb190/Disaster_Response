@@ -83,7 +83,7 @@ export function AssignmentsPage() {
           <div className="mt-2 flex items-center gap-1 flex-wrap">
             <span className="text-xs text-neutral-400">Resources:</span>
             {resNames.map((name) => (
-              <span key={name} className="badge-neutral text-[10px]">{name}</span>
+              <span key={name} className="badge-neutral text-xs">{name}</span>
             ))}
           </div>
         )}

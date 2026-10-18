@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom';
-import { Activity, ArrowRight, LogOut, Radio, Shield, Siren, UserRound } from 'lucide-react';
+import { PublicHeader } from '@/components/layout/PublicHeader';
+import { Activity, ArrowRight, Shield, Siren, UserRound } from 'lucide-react';
 import { useAuth } from '@/auth/AuthContext';
 
 export function WorkspacePage() {
@@ -11,9 +12,9 @@ export function WorkspacePage() {
   ].filter((workspace) => workspace.show);
 
   return (
-    <div className="min-h-screen bg-neutral-50">
-      <header className="bg-white border-b border-neutral-200"><div className="max-w-5xl mx-auto px-6 py-4 flex justify-between items-center"><Link to="/" className="flex items-center gap-2 font-bold"><Radio size={20} className="text-primary-600" /> ResQNet</Link><button className="btn-ghost btn-sm" onClick={() => void auth.signOut()}><LogOut size={15} /> Sign out</button></div></header>
-      <main className="max-w-5xl mx-auto px-6 py-10">
+    <div className="min-h-screen bg-paper">
+      <PublicHeader />
+      <main id="main" className="mx-auto max-w-5xl px-4 py-10 sm:px-6">
         <p className="text-sm text-neutral-500">Signed in as {auth.profile?.email}</p>
         <h1 className="text-3xl font-bold mt-1">Welcome, {auth.profile?.full_name || 'ResQNet user'}</h1>
         <p className="text-neutral-500 mt-2">Choose a workspace. Access is based on roles granted to this account.</p>

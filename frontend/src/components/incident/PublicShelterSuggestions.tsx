@@ -52,7 +52,7 @@ export function PublicShelterSuggestions({
       ) : shelters.data?.length ? (
         <ul className="mt-4 space-y-2">
           {shelters.data.map((shelter) => (
-            <li key={shelter.id} className="rounded-lg border border-emerald-200 bg-white p-3 text-xs">
+            <li key={shelter.id} className="rounded-lg border border-emerald-200 bg-surface p-3 text-xs">
               <div className="flex justify-between gap-3">
                 <strong className="text-neutral-800">{shelter.name}</strong>
                 <span className="whitespace-nowrap text-neutral-600">{Number(shelter.distance_km).toFixed(1)} km</span>
@@ -66,7 +66,7 @@ export function PublicShelterSuggestions({
       ) : (
         <p className="mt-4 text-xs text-amber-800">No open shelter currently matches the selected needs. Do not travel without coordinator guidance.</p>
       )}
-      <p className="mt-3 text-[11px] text-emerald-900">Distance is a straight-line estimate, not a safe-route guarantee. Capacity can change quickly.</p>
+      <p className="mt-3 text-xs text-emerald-900">Distance is a straight-line estimate, not a safe-route guarantee. Capacity can change quickly.</p>
     </section>
   );
 }

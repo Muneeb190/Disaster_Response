@@ -23,31 +23,25 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
   const dismiss = (id: number) => setToasts((prev) => prev.filter((t) => t.id !== id));
 
   const icons = {
-    success: <CheckCircle size={18} className="text-green-500" />,
-    error: <XCircle size={18} className="text-red-500" />,
-    warning: <AlertCircle size={18} className="text-yellow-500" />,
-    info: <Info size={18} className="text-blue-500" />,
+    success: <CheckCircle size={20} aria-hidden="true" className="text-[#7FD1A8]" />,
+    error: <XCircle size={20} aria-hidden="true" className="text-[#FF9A8F]" />,
+    warning: <AlertCircle size={20} aria-hidden="true" className="text-[#F5C46B]" />,
+    info: <Info size={20} aria-hidden="true" className="text-flood" />,
   };
 
   return (
     <ToastContext.Provider value={{ toast }}>
       {children}
-      <div className="fixed bottom-4 right-4 z-[100] flex flex-col gap-2 max-w-sm">
+      <div className="fixed bottom-24 left-4 right-4 z-[2000] flex flex-col items-center gap-2 sm:bottom-6 sm:left-auto sm:right-6 sm:items-end" role="status" aria-live="polite">
         {toasts.map((t) => (
           <div
             key={t.id}
-            className={cn(
-              'card flex items-start gap-3 px-4 py-3 animate-slide-in shadow-cardHover',
-              t.type === 'success' && 'border-l-4 border-l-green-500',
-              t.type === 'error' && 'border-l-4 border-l-red-500',
-              t.type === 'warning' && 'border-l-4 border-l-yellow-500',
-              t.type === 'info' && 'border-l-4 border-l-blue-500'
-            )}
+            className={cn('flex w-full max-w-sm animate-fade-in items-start gap-3 rounded-panel bg-ink px-4 py-3 text-white shadow-lift', t.type === 'error' && 'ring-2 ring-[#FF9A8F]/60')}
           >
             {icons[t.type]}
-            <p className="text-sm text-neutral-700 flex-1">{t.message}</p>
-            <button onClick={() => dismiss(t.id)} className="text-neutral-400 hover:text-neutral-600">
-              <X size={14} />
+            <p className="flex-1 text-[15px]">{t.message}</p>
+            <button onClick={() => dismiss(t.id)} className="rounded p-0.5 text-[#C9D6D4] hover:text-white" aria-label="Dismiss">
+              <X size={16} />
             </button>
           </div>
         ))}

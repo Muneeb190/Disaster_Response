@@ -1,33 +1,61 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Users, Package, ArrowUpRight, Check, TriangleAlert, FileText, House, BellRing, Volume2 } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
+import { Check, TriangleAlert, FileText, BellRing, Plus, Eye, Route, CloudRain, type LucideIcon } from 'lucide-react';
 import { DashboardLayout } from '@/components/dashboard/DashboardLayout';
-import { IncidentMap } from '@/components/map/IncidentMap';
-import { DemoBadge, PriorityBadge } from '@/components/ui/Badges';
+import { IncidentMap, type MapArea } from '@/components/map/IncidentMap';
+import { PriorityBadge, TeamStatusBadge } from '@/components/ui/Badges';
+import { PriorityGauge } from '@/components/ui/PriorityGauge';
 import { Skeleton, EmptyState } from '@/components/ui/States';
-import { useDashboardSummary, useIncidents, useTeams, useResources, useShelters, useAlerts, useAssignments, useAcknowledgeAlert, useDemoPresence, useDangerZones } from '@/hooks/useData';
-import { useOperationArea, localTimeZoneLabel } from '@/lib/region';
+import { useDashboardSummary, useIncidents, useTeams, useResources, useShelters, useAlerts, useAssignments, useAcknowledgeAlert, useDangerZones } from '@/hooks/useData';
+import { useWeatherWarnings } from '@/hooks/useWeatherWarnings';
+import { useOperationArea } from '@/lib/region';
 import { useToast } from '@/components/ui/toast-context';
+import { supabase } from '@/lib/supabase';
 import { timeAgo } from '@/lib/utils';
-import { ALERT_TYPE_LABELS, TEAM_MARKER_COLORS, TEAM_STATUS_LABELS, type TeamStatus } from '@/types';
+import { ALERT_TYPE_LABELS, INCIDENT_TYPE_LABELS, TEAM_MARKER_COLORS, TEAM_STATUS_LABELS, type VulnerabilityArea } from '@/types';
 import { enableBrowserNotifications } from '@/lib/notifications';
 import { WeatherSafetyPanel } from '@/components/weather/WeatherSafetyPanel';
 
-function useNow(intervalMs = 1000) {
-  const [now, setNow] = useState(() => Date.now());
-  useEffect(() => {
-    const id = setInterval(() => setNow(Date.now()), intervalMs);
-    return () => clearInterval(id);
-  }, [intervalMs]);
-  return now;
+type SilentZone = { area_id: string; area_name: string; recent_reports: number; population: number };
+
+function useUnseenPicture() {
+  return useQuery({
+    queryKey: ['dashboard-unseen'],
+    queryFn: async () => {
+      const [areas, silent, checkins, moves] = await Promise.all([
+        supabase.from('areas').select('id,name,vulnerability_index,boundary,is_demo'),
+        supabase.rpc('list_silent_zones'),
+        supabase.from('safety_checkins').select('status'),
+        supabase.from('prepositioning_suggestions').select('id').eq('status', 'suggested'),
+      ]);
+      const checkinRows = (checkins.data ?? []) as { status: string }[];
+      return {
+        areas: (areas.data ?? []) as unknown as VulnerabilityArea[],
+        silent: (silent.data ?? []) as SilentZone[],
+        awaiting: checkinRows.filter((row) => row.status === 'pending').length,
+        noReply: checkinRows.filter((row) => row.status === 'no_response' || row.status === 'needs_help').length,
+        pendingMoves: moves.data?.length ?? 0,
+      };
+    },
+    refetchInterval: 60_000,
+  });
+}
+
+function QuestionTile({ to, icon: Icon, question, value, detail, tone }: { to: string; icon: LucideIcon; question: string; value: React.ReactNode; detail: string; tone: 'danger' | 'calm' }) {
+  return (
+    <Link to={to} className="group card flex flex-col gap-3 p-5 transition-colors hover:border-neutral-300">
+      <span className="flex items-center gap-2 text-[15px] font-semibold text-neutral-600"><Icon size={18} aria-hidden="true" className={tone === 'danger' ? 'text-critical' : 'text-primary-600'} />{question}</span>
+      <span className={`font-display text-[40px] font-bold leading-none ${tone === 'danger' ? 'text-critical' : 'text-ink'}`}>{value}</span>
+      <span className="text-[15px] text-neutral-600">{detail}</span>
+    </Link>
+  );
 }
 
 export function DashboardPage() {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const now = useNow();
   const area = useOperationArea();
-  const demo = useDemoPresence();
   const summary = useDashboardSummary();
   const incidents = useIncidents({ limit: 500 });
   const teams = useTeams();
@@ -37,167 +65,156 @@ export function DashboardPage() {
   const dangerZones = useDangerZones();
   const assignments = useAssignments();
   const ackAlert = useAcknowledgeAlert();
-  const [alertTab, setAlertTab] = useState<'latest' | 'unack' | 'ack'>('latest');
-  const [layers, setLayers] = useState({ incidents: true, dangerZones: true, teams: true, shelters: true, supplies: true });
+  const unseen = useUnseenPicture();
+  const weather = useWeatherWarnings();
+  const [layers, setLayers] = useState({ areas: true, incidents: true, dangerZones: true, teams: true, shelters: true, supplies: false });
 
   const openIncidents = useMemo(() => (incidents.data ?? []).filter((i) => !['resolved', 'cancelled'].includes(i.status)), [incidents.data]);
-  const criticalUnassigned = openIncidents.filter((i) => i.priority_level === 'critical' && ['reported', 'verified'].includes(i.status));
+  const waiting = openIncidents.filter((i) => ['reported', 'verified'].includes(i.status));
+  const criticalUnassigned = waiting.filter((i) => i.priority_level === 'critical');
+  const nextUp = [...waiting].sort((a, b) => b.priority_score - a.priority_score || a.created_at.localeCompare(b.created_at)).slice(0, 6);
+  const availableTeams = (teams.data ?? []).filter((t) => t.status === 'available').length;
   const openShelters = (shelters.data ?? []).filter((s) => s.status !== 'closed');
-  const shelterCapacity = openShelters.reduce((sum, s) => sum + s.capacity, 0);
-  const shelterOccupancy = openShelters.reduce((sum, s) => sum + s.occupancy, 0);
-  const teamCounts = (teams.data ?? []).reduce<Partial<Record<TeamStatus, number>>>((acc, team) => ({ ...acc, [team.status]: (acc[team.status] ?? 0) + 1 }), {});
+  const shelterFree = openShelters.reduce((sum, s) => sum + Math.max(0, s.capacity - s.occupancy), 0);
   const activeByTeam = new Map((assignments.data ?? []).filter((a) => ['assigned', 'dispatched'].includes(a.status)).map((a) => [a.team_id, a]));
   const incidentById = new Map((incidents.data ?? []).map((i) => [i.id, i]));
-  const supplyTypes = Object.entries((resources.data ?? []).reduce<Record<string, { available: number; total: number }>>((acc, r) => {
-    const entry = acc[r.type] ?? { available: 0, total: 0 };
-    return { ...acc, [r.type]: { available: entry.available + r.quantity_available, total: entry.total + r.quantity_available + r.quantity_reserved } };
-  }, {})).slice(0, 4);
-
-  const alertList = (alerts.data ?? []).filter((a) => alertTab === 'latest' || (alertTab === 'unack' ? !a.acknowledged : a.acknowledged));
-  const unackCount = (alerts.data ?? []).filter((a) => !a.acknowledged).length;
-  const fullestShelter = [...openShelters].sort((a, b) => b.occupancy / (b.capacity || 1) - a.occupancy / (a.capacity || 1))[0];
-  const roomiestShelter = [...openShelters].filter((s) => s.status === 'open').sort((a, b) => (b.capacity - b.occupancy) - (a.capacity - a.occupancy))[0];
-  const tz = localTimeZoneLabel();
-  const syncedAgo = summary.dataUpdatedAt ? Math.max(0, Math.round((now - summary.dataUpdatedAt) / 1000)) : null;
+  const unackAlerts = (alerts.data ?? []).filter((a) => !a.acknowledged);
+  const silentIds = new Set((unseen.data?.silent ?? []).map((zone) => zone.area_id));
+  const mapAreas: MapArea[] = (unseen.data?.areas ?? []).map((a) => ({ ...a, silent: silentIds.has(a.id) }));
+  const warnings = weather.data?.warnings ?? [];
+  const silentCount = unseen.data?.silent.length ?? 0;
+  const atRiskSignal = silentCount + (unseen.data?.noReply ?? 0);
 
   const handleAck = async (id: string) => {
-    try {
-      await ackAlert.mutateAsync(id);
-      toast('Alert acknowledged', 'success');
-    } catch (error) {
-      toast(error instanceof Error ? error.message : 'Failed to acknowledge alert', 'error');
-    }
+    try { await ackAlert.mutateAsync(id); toast('Alert acknowledged', 'success'); }
+    catch (error) { toast(error instanceof Error ? error.message : 'Could not acknowledge the alert', 'error'); }
   };
-
   const enableNotifications = async () => {
-    try { await enableBrowserNotifications(); toast('Browser notifications enabled', 'success'); }
-    catch (error) { toast(error instanceof Error ? error.message : 'Could not enable notifications', 'error'); }
+    try { await enableBrowserNotifications(); toast('Browser notifications are on', 'success'); }
+    catch (error) { toast(error instanceof Error ? error.message : 'Could not turn on notifications', 'error'); }
   };
-
-  const kpis = [
-    { label: 'Active incidents', value: summary.data?.openIncidents ?? 0, detail: `${summary.data?.criticalIncidents ?? 0} critical`, icon: TriangleAlert, tone: 'red', trend: `${summary.data?.reportedLastHour ?? 0} reported in the last hour` },
-    { label: 'Teams available', value: `${teamCounts.available ?? 0} / ${teams.data?.length ?? 0}`, detail: 'ready to dispatch', icon: Users, tone: 'teal', trend: `${teamCounts.assigned ?? 0} busy · ${teamCounts.en_route ?? 0} travelling · ${(teamCounts.unavailable ?? 0) + (teamCounts.offline ?? 0)} out` },
-    { label: 'Shelter space', value: openShelters.length ? `${Math.max(0, shelterCapacity - shelterOccupancy)}` : '—', detail: openShelters.length ? `of ${shelterCapacity} spaces free` : 'no shelters recorded', icon: House, tone: 'amber', trend: openShelters.length ? `${shelterCapacity ? Math.round((shelterOccupancy / shelterCapacity) * 100) : 0}% occupied · ${openShelters.filter((s) => s.status === 'full').length} full` : 'Add shelters on the Shelters page' },
-    { label: 'Unacknowledged alerts', value: summary.data?.unacknowledgedAlerts ?? 0, detail: `${summary.data?.resourceShortages ?? 0} low-stock items`, icon: BellRing, tone: 'red', trend: `${summary.data?.activeAssignments ?? 0} active assignments` },
-  ];
 
   return (
-    <DashboardLayout title="Response overview" subtitle={area}>
-      <div className="command-page-head">
-        <div>
-          <p className="command-breadcrumb">OPERATIONS / {area.toUpperCase()}</p>
-          <div className="flex items-center gap-3"><h1>Response overview</h1>{demo.data && <DemoBadge />}</div>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="command-time">
-            <strong>{new Date(now).toLocaleString(undefined, { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' })} {tz}</strong>
-            <span>{syncedAgo === null ? 'Waiting for data…' : `Last synced ${syncedAgo}s ago`}</span>
-          </div>
-          <button className="command-button command-button-light" onClick={() => navigate('/reports/summary')}><FileText size={14} /> Situation report</button>
-          <button className="command-button command-button-light" onClick={() => void enableNotifications()}><Volume2 size={14} /> Browser alerts</button>
-          <button className="command-button command-button-teal" onClick={() => navigate('/report')}><span className="text-lg leading-none">+</span> Log incident</button>
-        </div>
-      </div>
-
+    <DashboardLayout title="Overview" subtitle={area} actions={<>
+      <button className="btn-secondary btn-sm" onClick={() => navigate('/reports/summary')}><FileText size={16} aria-hidden="true" />Situation report</button>
+      <button className="btn-secondary btn-sm" onClick={() => void enableNotifications()}><BellRing size={16} aria-hidden="true" />Browser alerts</button>
+      <button className="btn-primary btn-sm" onClick={() => navigate('/report')}><Plus size={16} aria-hidden="true" />Log incident</button>
+    </>}>
       {criticalUnassigned.length > 0 && (
-        <div className="command-advisory">
-          <TriangleAlert size={16} /><strong>{criticalUnassigned.length} critical {criticalUnassigned.length === 1 ? 'incident has' : 'incidents have'} no team assigned</strong>
-          <span className="command-advisory-separator" /> Oldest reported {timeAgo(criticalUnassigned.reduce((oldest, i) => (i.created_at < oldest ? i.created_at : oldest), criticalUnassigned[0].created_at))}.
-          <button onClick={() => navigate('/incidents?priority=critical')}>Open queue <ArrowUpRight size={13} /></button>
+        <div className="mb-5 flex flex-wrap items-center gap-3 rounded-panel border border-critical-line bg-critical-soft px-4 py-3 text-critical" role="alert">
+          <TriangleAlert size={20} aria-hidden="true" />
+          <strong>{criticalUnassigned.length} critical {criticalUnassigned.length === 1 ? 'incident has' : 'incidents have'} no team yet.</strong>
+          <span className="text-ink">Oldest reported {timeAgo(criticalUnassigned.reduce((oldest, i) => (i.created_at < oldest ? i.created_at : oldest), criticalUnassigned[0].created_at))}.</span>
+          <Link to="/incidents?priority=critical" className="ml-auto font-semibold underline underline-offset-2">Open the queue</Link>
         </div>
       )}
 
-      <WeatherSafetyPanel incidents={openIncidents} />
-
-      <div className="command-kpi-grid">
-        {kpis.map((kpi) => {
-          const Icon = kpi.icon;
-          return <div className="command-kpi" key={kpi.label}><div className={`command-kpi-icon command-kpi-icon-${kpi.tone}`}><Icon size={16} /></div><p>{kpi.label}</p><div className="flex items-baseline gap-2"><strong>{summary.isLoading ? <Skeleton className="w-14 h-8" /> : kpi.value}</strong><span className={`command-kpi-detail command-kpi-${kpi.tone}`}>{kpi.detail}</span></div><small>{kpi.trend}</small></div>;
-        })}
+      <div className="mb-5 grid gap-3 md:grid-cols-3">
+        <QuestionTile to="/vulnerability" icon={Eye} question="Who is most at risk?" tone={atRiskSignal ? 'danger' : 'calm'}
+          value={unseen.isLoading ? <Skeleton className="h-10 w-16" /> : atRiskSignal}
+          detail={silentCount ? `${silentCount} silent ${silentCount === 1 ? 'zone' : 'zones'} and ${unseen.data?.noReply ?? 0} unanswered or help-requested check-ins` : unseen.data?.awaiting ? `${unseen.data.awaiting} residents have not answered "Are you safe?" yet` : 'No silent zones. Every warned resident has answered.'} />
+        <QuestionTile to="/incidents" icon={Route} question="Who gets help first?" tone={criticalUnassigned.length ? 'danger' : 'calm'}
+          value={incidents.isLoading ? <Skeleton className="h-10 w-16" /> : waiting.length}
+          detail={`${waiting.length === 1 ? 'incident is' : 'incidents are'} waiting for a team. ${availableTeams} of ${teams.data?.length ?? 0} teams are free.`} />
+        <QuestionTile to="/planning" icon={CloudRain} question="How early can we act?" tone={warnings.length ? 'danger' : 'calm'}
+          value={weather.isLoading ? <Skeleton className="h-10 w-16" /> : warnings.length}
+          detail={warnings.length ? `Active weather ${warnings.length === 1 ? 'warning' : 'warnings'}: ${warnings.map((w) => w.title.toLowerCase()).join(', ')}. ${unseen.data?.pendingMoves ?? 0} moves to approve.` : 'No weather warning in the next 24 hours.'} />
       </div>
 
-      <div className="command-workspace-grid">
-        <section className="command-panel command-map-panel">
-          <div className="command-panel-heading"><div><h2>Response map <span>{openIncidents.length} OPEN {openIncidents.length === 1 ? 'INCIDENT' : 'INCIDENTS'}</span></h2></div></div>
-          <div className="command-map-controls">
-            {([['incidents', 'Incidents'], ['dangerZones', 'Danger zones'], ['teams', 'Teams'], ['shelters', 'Shelters'], ['supplies', 'Supplies']] as const).map(([key, label]) => (
-              <label key={key}><input type="checkbox" checked={layers[key]} onChange={(e) => setLayers((current) => ({ ...current, [key]: e.target.checked }))} /> {label}</label>
-            ))}
+      <div className="mb-5 grid gap-5 xl:grid-cols-[minmax(0,1.7fr)_minmax(340px,1fr)]">
+        <section className="card overflow-hidden" aria-labelledby="map-title">
+          <div className="panel-head flex-wrap">
+            <h2 id="map-title" className="panel-title">Response map</h2>
+            <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm">
+              {([['areas', 'Vulnerability'], ['incidents', 'Incidents'], ['dangerZones', 'Danger zones'], ['teams', 'Teams'], ['shelters', 'Shelters'], ['supplies', 'Supplies']] as const).map(([key, label]) => (
+                <label key={key} className="inline-flex cursor-pointer items-center gap-1.5"><input type="checkbox" className="h-4 w-4 accent-primary-600" checked={layers[key]} onChange={(e) => setLayers((current) => ({ ...current, [key]: e.target.checked }))} />{label}</label>
+              ))}
+            </div>
           </div>
-          {incidents.isLoading || teams.isLoading || resources.isLoading || shelters.isLoading ? <Skeleton className="w-full h-[430px] rounded-none" /> : (
-            <IncidentMap incidents={openIncidents} teams={teams.data ?? []} resources={resources.data ?? []} shelters={shelters.data ?? []}
-              dangerZones={layers.dangerZones ? dangerZones.data ?? [] : []}
-              showIncidents={layers.incidents} showTeams={layers.teams} showShelters={layers.shelters} showResources={layers.supplies}
-              onIncidentClick={(id) => navigate(`/incidents/${id}`)} height="430px" />
-          )}
-          <div className="command-map-legend">
-            <span><i className="legend-dot legend-critical" /> Critical</span>
-            <span><i className="legend-dot legend-high" /> High</span>
-            {(['available', 'assigned', 'en_route'] as const).map((status) => <span key={status}><i className="legend-dot" style={{ background: TEAM_MARKER_COLORS[status] }} /> Team {TEAM_STATUS_LABELS[status].toLowerCase()}</span>)}
-            <span><i className="legend-dot legend-shelter" /> Shelter</span>
-            <span className="ml-auto">NOT FOR NAVIGATION</span>
+          <div className="[&>.card]:rounded-none [&>.card]:border-0">
+            {incidents.isLoading || teams.isLoading ? <Skeleton className="h-[460px] w-full rounded-none" /> : (
+              <IncidentMap incidents={openIncidents} teams={teams.data ?? []} resources={resources.data ?? []} shelters={shelters.data ?? []}
+                dangerZones={layers.dangerZones ? dangerZones.data ?? [] : []} areas={layers.areas ? mapAreas : []}
+                showIncidents={layers.incidents} showTeams={layers.teams} showShelters={layers.shelters} showResources={layers.supplies}
+                onIncidentClick={(id) => navigate(`/incidents/${id}`)} height="460px" />
+            )}
+          </div>
+          <div className="flex flex-wrap items-center gap-x-5 gap-y-1.5 border-t border-line px-5 py-3 text-sm text-neutral-600">
+            <span className="inline-flex items-center gap-1.5"><i className="h-2.5 w-2.5 rounded-full bg-critical" />Critical</span>
+            <span className="inline-flex items-center gap-1.5"><i className="h-2.5 w-2.5 rounded-full bg-high" />High</span>
+            {(['available', 'en_route'] as const).map((status) => <span key={status} className="inline-flex items-center gap-1.5"><i className="h-2.5 w-2.5 rounded-full" style={{ background: TEAM_MARKER_COLORS[status] }} />Team {TEAM_STATUS_LABELS[status].toLowerCase()}</span>)}
+            <span className="inline-flex items-center gap-1.5"><i className="h-3 w-4 border-2 border-dashed border-high" />Silent zone</span>
+            <span className="inline-flex items-center gap-1.5"><i className="h-3 w-4 bg-primary-600/40" />Higher vulnerability</span>
           </div>
         </section>
 
-        <section className="command-panel command-alerts-panel">
-          <div className="command-panel-heading"><h2>Live alerts <span>{unackCount} UNACKNOWLEDGED</span></h2><Link className="command-link" to="/alerts">View all <ArrowUpRight size={14} /></Link></div>
-          <div className="command-alert-tabs">
-            <button className={alertTab === 'latest' ? 'active' : ''} onClick={() => setAlertTab('latest')}>Latest</button>
-            <button className={alertTab === 'unack' ? 'active' : ''} onClick={() => setAlertTab('unack')}>Unacknowledged <b>{unackCount}</b></button>
-            <button className={alertTab === 'ack' ? 'active' : ''} onClick={() => setAlertTab('ack')}>Acknowledged</button>
+        <section className="card flex flex-col" aria-labelledby="next-title">
+          <div className="panel-head">
+            <h2 id="next-title" className="panel-title">Next up</h2>
+            <Link to="/incidents" className="text-sm font-semibold text-primary-700 hover:underline">Full queue</Link>
           </div>
-          <div className="command-alert-list">
-            {alerts.isLoading ? <div className="p-5"><Skeleton className="h-20 w-full mb-3" /><Skeleton className="h-20 w-full" /></div> : alertList.length > 0 ? alertList.slice(0, 5).map((alert) => (
-              <div className="command-alert" key={alert.id}>
-                <div className="command-alert-time">{timeAgo(alert.created_at)}<span className={`alert-dot alert-dot-${alert.severity}`} /></div>
-                <div className="flex-1">
-                  <div className="flex justify-between gap-2"><strong>{alert.message}</strong><PriorityBadge level={alert.severity} /></div>
-                  <small>
-                    {ALERT_TYPE_LABELS[alert.type] ?? alert.type}
-                    {alert.incident_id && <> · <Link className="underline" to={`/incidents/${alert.incident_id}`}>{alert.incidents?.report_code ?? 'Incident'}</Link></>}
-                    {alert.acknowledged && <> · acknowledged{alert.profiles ? ` by ${alert.profiles.full_name || alert.profiles.email}` : ''}</>}
-                  </small>
-                </div>
-                {!alert.acknowledged && <button className="command-ack" onClick={() => handleAck(alert.id)}><Check size={12} /> Ack</button>}
-              </div>
-            )) : <EmptyState title="No alerts" message={alertTab === 'unack' ? 'Everything has been acknowledged' : 'No alerts to display'} />}
-          </div>
+          {incidents.isLoading ? <div className="space-y-3 p-5"><Skeleton className="h-16 w-full" /><Skeleton className="h-16 w-full" /></div> : nextUp.length ? (
+            <ol className="divide-y divide-line">
+              {nextUp.map((incident) => (
+                <li key={incident.id}>
+                  <Link to={`/incidents/${incident.id}`} className="flex items-center gap-4 px-5 py-3.5 hover:bg-neutral-50">
+                    <PriorityGauge score={incident.priority_score} level={incident.priority_level} size="sm" showLabel={false} />
+                    <span className="min-w-0 flex-1">
+                      <span className="flex items-center gap-2"><strong className="font-display text-lg">{incident.report_code}</strong>{incident.incident_origin === 'proactive_check' && <span className="badge-info">Welfare check</span>}{incident.is_proxy_report && <span className="badge-neutral">For someone else</span>}</span>
+                      <span className="block truncate text-sm text-neutral-600">{INCIDENT_TYPE_LABELS[incident.type]}{incident.area_landmark ? `, ${incident.area_landmark}` : ''}</span>
+                      <span className="block text-sm text-neutral-500">Waiting {timeAgo(incident.created_at).replace(' ago', '')}</span>
+                    </span>
+                    <span className="text-end"><span className="block font-display text-2xl font-bold leading-none">{incident.priority_score}</span><PriorityBadge level={incident.priority_level} className="mt-1" /></span>
+                  </Link>
+                </li>
+              ))}
+            </ol>
+          ) : <EmptyState icon={<Check size={28} />} title="Nobody is waiting" message="New reports appear here, most urgent first." />}
         </section>
       </div>
 
-      <div className="command-bottom-grid">
-        <section className="command-panel">
-          <div className="command-panel-heading"><h2>Team deployment <span>{teams.data?.length ?? 0} TEAMS</span></h2><Link className="command-link" to="/teams">Manage teams <ArrowUpRight size={14} /></Link></div>
-          {supplyTypes.length > 0 && (
-            <div className="command-resource-strip"><span>AVAILABLE / TOTAL</span>{supplyTypes.map(([type, counts]) => <span key={type}><Package size={14} /> {type.replace(/_/g, ' ')} <b>{counts.available} / {counts.total}</b></span>)}</div>
-          )}
+      <div className="mb-5 grid gap-5 xl:grid-cols-[minmax(0,1.7fr)_minmax(340px,1fr)]">
+        <section className="card overflow-hidden" aria-labelledby="teams-title">
+          <div className="panel-head">
+            <h2 id="teams-title" className="panel-title">Teams</h2>
+            <Link to="/teams" className="text-sm font-semibold text-primary-700 hover:underline">Manage teams</Link>
+          </div>
           {teams.data?.length ? (
-            <div className="command-table-wrap"><table className="command-table"><thead><tr><th>Team</th><th>Assignment</th><th>Personnel</th><th>Status</th><th>Updated</th></tr></thead><tbody>
+            <div className="overflow-x-auto"><table className="table"><thead><tr><th>Team</th><th>Working on</th><th>People</th><th>Status</th><th>Updated</th></tr></thead><tbody>
               {[...teams.data].sort((a, b) => Number(activeByTeam.has(b.id)) - Number(activeByTeam.has(a.id))).slice(0, 6).map((team) => {
                 const active = activeByTeam.get(team.id);
                 const incident = active ? incidentById.get(active.incident_id) : undefined;
-                return <tr key={team.id}><td><strong>{team.team_code}</strong><span>{team.name}</span></td><td>{incident ? <Link className="underline" to={`/incidents/${incident.id}`}>{incident.report_code}{incident.area_landmark ? ` · ${incident.area_landmark}` : ''}</Link> : '—'}</td><td>{String(team.capacity).padStart(2, '0')}</td><td><span className={`command-status command-status-${team.status}`}>{TEAM_STATUS_LABELS[team.status]}</span></td><td>{timeAgo(team.updated_at)}</td></tr>;
+                return <tr key={team.id}><td><strong>{team.name}</strong><span className="block text-[13px] text-neutral-500">{team.team_code}</span></td><td>{incident ? <Link className="font-semibold text-primary-700 hover:underline" to={`/incidents/${incident.id}`}>{incident.report_code}</Link> : <span className="text-neutral-500">Nothing</span>}</td><td>{team.capacity}</td><td><TeamStatusBadge status={team.status} /></td><td className="text-neutral-500">{timeAgo(team.updated_at)}</td></tr>;
               })}
             </tbody></table></div>
-          ) : <EmptyState title="No teams yet" message="Add rescue teams on the Teams page." />}
+          ) : <EmptyState title="No teams yet" message="Add rescue teams so incidents can be assigned." action={<Link to="/teams" className="btn-secondary btn-sm">Add a team</Link>} />}
         </section>
 
-        <section className="command-panel command-shelter-panel">
-          <div className="command-panel-heading"><h2>Shelter capacity <span>{openShelters.length} OPEN</span></h2><Link className="command-link" to="/shelters">Directory <ArrowUpRight size={14} /></Link></div>
-          {openShelters.length ? <>
-            <div className="command-shelter-total"><strong>{Math.max(0, shelterCapacity - shelterOccupancy)}</strong><span>spaces free</span><small>{shelterOccupancy} / {shelterCapacity}</small></div>
-            {openShelters.slice(0, 4).map((shelter, index) => {
-              const used = shelter.capacity ? Math.round((shelter.occupancy / shelter.capacity) * 100) : 100;
-              return <div className="command-shelter-row" key={shelter.id}><span className="command-shelter-code">S{index + 1}</span><div className="flex-1"><div className="flex justify-between"><strong>{shelter.name}</strong><small>{shelter.occupancy} / {shelter.capacity}</small></div><div className="command-progress"><i style={{ width: `${Math.min(100, used)}%` }} /></div><small className="text-neutral-400">Updated {timeAgo(shelter.last_updated_at)}</small></div><b>{used}%</b></div>;
-            })}
-            {fullestShelter && fullestShelter.capacity > 0 && fullestShelter.occupancy / fullestShelter.capacity >= 0.9 && (
-              <p className="command-shelter-warning">■ {fullestShelter.name} is {fullestShelter.status === 'full' ? 'full' : 'near capacity'}{roomiestShelter && roomiestShelter.id !== fullestShelter.id ? ` · most space at ${roomiestShelter.name}` : ''}</p>
-            )}
-          </> : <EmptyState title="No shelters recorded" message="Add shelters with capacity and facilities." />}
+        <section className="card flex flex-col" aria-labelledby="alerts-title">
+          <div className="panel-head">
+            <h2 id="alerts-title" className="panel-title">Alerts to acknowledge</h2>
+            <Link to="/alerts" className="text-sm font-semibold text-primary-700 hover:underline">All alerts</Link>
+          </div>
+          {alerts.isLoading ? <div className="p-5"><Skeleton className="h-16 w-full" /></div> : unackAlerts.length ? (
+            <ul className="divide-y divide-line">
+              {unackAlerts.slice(0, 5).map((alert) => (
+                <li key={alert.id} className="flex items-start gap-3 px-5 py-3.5">
+                  <div className="min-w-0 flex-1">
+                    <p className="font-semibold leading-snug">{alert.message}</p>
+                    <p className="mt-1 text-sm text-neutral-500">{ALERT_TYPE_LABELS[alert.type] ?? alert.type}, {timeAgo(alert.created_at)}{alert.incident_id && <> · <Link className="font-semibold text-primary-700 hover:underline" to={`/incidents/${alert.incident_id}`}>{alert.incidents?.report_code ?? 'Incident'}</Link></>}</p>
+                  </div>
+                  <PriorityBadge level={alert.severity} />
+                  <button className="btn-ghost btn-sm" onClick={() => void handleAck(alert.id)} aria-label={`Acknowledge: ${alert.message}`}><Check size={16} aria-hidden="true" /></button>
+                </li>
+              ))}
+            </ul>
+          ) : <EmptyState icon={<Check size={28} />} title="All caught up" message="New alerts appear here until someone acknowledges them." />}
+          <p className="mt-auto border-t border-line px-5 py-3 text-sm text-neutral-500">{openShelters.length ? `${shelterFree} shelter spaces free across ${openShelters.length} shelters.` : 'No shelters recorded yet.'} <Link to="/shelters" className="font-semibold text-primary-700 hover:underline">Shelters</Link></p>
         </section>
       </div>
 
-      <div className="command-source-line"><span>SOURCE · ResQNet database, live</span><span>{demo.data ? 'INCLUDES DEMO SCENARIO DATA · ' : ''}TIMES IN {tz}</span></div>
+      <WeatherSafetyPanel incidents={openIncidents} />
+      <p className="mt-2 text-sm text-neutral-500">{summary.dataUpdatedAt ? `Updated ${timeAgo(new Date(summary.dataUpdatedAt).toISOString())}. ` : ''}Map is for coordination, not navigation.</p>
     </DashboardLayout>
   );
 }

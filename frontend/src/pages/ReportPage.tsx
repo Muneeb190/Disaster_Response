@@ -3,7 +3,9 @@ import { Link } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { Radio, ArrowLeft, ArrowRight, Check, Copy, MapPin, Sparkles, AlertCircle, Search, MessageCircleQuestion, ChevronDown, Camera } from 'lucide-react';
+import { Check, Copy, MapPin, Sparkles, AlertCircle, Search, MessageCircleQuestion, ChevronDown, Camera, Waves, Flame, HeartPulse, ThermometerSun, TriangleAlert, Send, User, Users, type LucideIcon } from 'lucide-react';
+import { PublicHeader } from '@/components/layout/PublicHeader';
+import { useLang } from '@/lib/i18n';
 import { LocationPicker } from '@/components/map/IncidentMap';
 import { useCreateIncident, type CreateIncidentInput } from '@/hooks/useData';
 import { useToast } from '@/components/ui/toast-context';
@@ -34,22 +36,19 @@ const schema = z.object({
 
 type FormData = z.infer<typeof schema>;
 
-const incidentTypes: { value: IncidentType; label: string; icon: string }[] = [
-  { value: 'flood', label: 'Flood', icon: '🌊' },
-  { value: 'fire', label: 'Fire', icon: '🔥' },
-  { value: 'medical_emergency', label: 'Medical Emergency', icon: '🚑' },
-  { value: 'heatwave', label: 'Heatwave', icon: '🌡' },
-  { value: 'other', label: 'Accident / Other', icon: '⚠' },
+const incidentTypes: { value: IncidentType; Icon: LucideIcon }[] = [
+  { value: 'flood', Icon: Waves },
+  { value: 'fire', Icon: Flame },
+  { value: 'medical_emergency', Icon: HeartPulse },
+  { value: 'heatwave', Icon: ThermometerSun },
+  { value: 'other', Icon: TriangleAlert },
 ];
 
-const triStateOptions: { value: TriState; label: string }[] = [
-  { value: 'yes', label: 'Yes' },
-  { value: 'no', label: 'No' },
-  { value: 'unknown', label: 'Unknown' },
-];
+const NEEDS = ['elderly', 'child', 'disabled', 'pregnant', 'cannot_walk', 'wheelchair', 'bedbound', 'chronic_condition', 'needs_medicine', 'oxygen_dependency', 'dialysis', 'lives_alone', 'no_phone', 'power_dependency', 'limited_transport'] as const;
 
 export function ReportPage() {
   const { toast } = useToast();
+  const { t } = useLang();
   const createIncident = useCreateIncident();
   const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [locationName, setLocationName] = useState('');
@@ -246,310 +245,195 @@ export function ReportPage() {
     }
   };
 
-  // Confirmation screen
+
   if (submittedCode) {
+    const copy = (value: string, what: string) => { void navigator.clipboard.writeText(value); toast(`${what} copied`, 'success'); };
     return (
-      <div className="min-h-screen bg-neutral-50 flex items-center justify-center p-6">
-        <div className="w-full max-w-2xl space-y-4">
-        <div className="card w-full card-body text-center">
-          <div className="w-16 h-16 rounded-full bg-green-50 flex items-center justify-center mx-auto mb-4">
-            <Check size={32} className="text-green-600" />
-          </div>
-          <h2 className="text-xl font-bold text-neutral-800 mb-2">Report Submitted</h2>
-          <p className="text-sm text-neutral-600 mb-1">
-            Your emergency report has been received and is now visible to coordinators.
-          </p>
-          <p className="text-sm text-neutral-600 mb-5">
-            Save both values below. The private tracking key protects your report from unauthorized access.
-          </p>
-
-          <div className="bg-neutral-50 border border-neutral-200 rounded-lg p-4 mb-5">
-            <p className="text-xs text-neutral-500 mb-1">Your Report ID</p>
-            <div className="flex items-center justify-center gap-2">
-              <code className="text-lg font-bold text-primary-700 tracking-wider">{submittedCode}</code>
-              <button
-                className="btn-ghost btn-sm p-1.5"
-                onClick={() => {
-                  navigator.clipboard.writeText(submittedCode);
-                  toast('Report ID copied', 'success');
-                }}
-              >
-                <Copy size={16} />
-              </button>
+      <div className="min-h-screen bg-paper">
+        <PublicHeader />
+        <main id="main" className="mx-auto max-w-2xl space-y-4 px-4 py-8 sm:px-6">
+          <section className="card card-body">
+            <div className="flex items-center gap-3">
+              <span className="grid h-11 w-11 place-items-center rounded-full bg-success-soft text-success"><Check size={24} aria-hidden="true" /></span>
+              <h1 className="text-3xl font-bold">{t('report.done')}</h1>
             </div>
-          </div>
-
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-5">
-            <p className="text-xs text-blue-600 mb-1">Private Tracking Key</p>
-            <div className="flex items-center justify-center gap-2">
-              <code className="text-sm font-bold text-blue-800 break-all">{submittedToken}</code>
-              <button
-                className="btn-ghost btn-sm p-1.5"
-                onClick={() => {
-                  if (submittedToken) navigator.clipboard.writeText(submittedToken);
-                  toast('Tracking key copied', 'success');
-                }}
-              >
-                <Copy size={16} />
-              </button>
+            <p className="mt-3 text-neutral-600">{t('report.doneBody')}</p>
+            <dl className="mt-5 grid gap-3 sm:grid-cols-2">
+              <div className="rounded-control border border-line p-4">
+                <dt className="text-sm text-neutral-500">{t('report.id')}</dt>
+                <dd className="mt-1 flex items-center justify-between gap-2" lang="en"><span className="font-display text-2xl font-bold">{submittedCode}</span><button type="button" className="btn-ghost btn-sm" onClick={() => copy(submittedCode, 'Report ID')}><Copy size={16} aria-hidden="true" />{t('report.copy')}</button></dd>
+              </div>
+              <div className="rounded-control border border-line p-4">
+                <dt className="text-sm text-neutral-500">{t('report.key')}</dt>
+                <dd className="mt-1 flex items-center justify-between gap-2" lang="en"><span className="break-all font-mono text-sm">{submittedToken}</span>{submittedToken && <button type="button" className="btn-ghost btn-sm shrink-0" onClick={() => copy(submittedToken, 'Tracking key')}><Copy size={16} aria-hidden="true" />{t('report.copy')}</button>}</dd>
+              </div>
+            </dl>
+            <div className="mt-5 flex flex-col gap-2 sm:flex-row">
+              <Link to={`/status?code=${encodeURIComponent(submittedCode)}`} className="btn-primary"><Search size={18} aria-hidden="true" />{t('report.trackIt')}</Link>
+              <Link to="/" className="btn-secondary">{t('report.backHome')}</Link>
             </div>
-          </div>
-
-          <div className="flex flex-col sm:flex-row gap-3 justify-center">
-            <Link to={`/status?code=${encodeURIComponent(submittedCode)}`} className="btn-secondary">
-              <Search size={18} />
-              Check status / add details
-            </Link>
-            <Link to="/" className="btn-ghost">
-              <ArrowLeft size={18} />
-              Back to Home
-            </Link>
-          </div>
-        </div>
-        {photoResult === 'uploaded' && <p className="rounded-lg border border-green-200 bg-green-50 p-3 text-center text-xs text-green-800">Your compressed photo was stored privately for authorized response staff.</p>}
-        {photoResult === 'failed' && <p className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-center text-xs text-amber-900">Your report was received, but the selected photo was not uploaded. You can try again below.</p>}
-        {submittedToken && <EvidenceUploader reportCode={submittedCode} trackingToken={submittedToken} />}
-        {submittedToken && <PublicShelterSuggestions reportCode={submittedCode} trackingToken={submittedToken} vulnerable={watch('vulnerable_people') === 'yes'} />}
-        <SafetyGuidance type={submittedType} />
-        </div>
+          </section>
+          {photoResult === 'uploaded' && <p className="rounded-control border border-success-line bg-success-soft p-3 text-sm text-success">Your photo was stored privately for response staff.</p>}
+          {photoResult === 'failed' && <p className="rounded-control border border-moderate-line bg-moderate-soft p-3 text-sm text-moderate">Your report was received, but the photo was not uploaded. You can try again below.</p>}
+          {submittedToken && <EvidenceUploader reportCode={submittedCode} trackingToken={submittedToken} />}
+          {submittedToken && <PublicShelterSuggestions reportCode={submittedCode} trackingToken={submittedToken} vulnerable={watch('vulnerable_people') === 'yes' || vulnerabilityFlags.length > 0} />}
+          <SafetyGuidance type={submittedType} />
+        </main>
       </div>
     );
   }
 
+  const type = watch('type');
+  const toggleNeed = (value: string, on: boolean) => setVulnerabilityFlags((current) => on ? [...new Set([...current, value])] : current.filter((item) => item !== value));
+
   return (
-    <div className="min-h-screen bg-neutral-50">
-      {/* Header */}
-      <header className="bg-white border-b border-neutral-200">
-        <div className="max-w-3xl mx-auto px-6 py-4 flex items-center justify-between">
-          <Link to="/" className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-primary-600 flex items-center justify-center">
-              <Radio size={18} className="text-white" />
-            </div>
-            <span className="font-bold text-neutral-800">ResQNet</span>
-          </Link>
-          <Link to="/" className="btn-ghost btn-sm">
-            <ArrowLeft size={16} /> Home
-          </Link>
-        </div>
-      </header>
+    <div className="min-h-screen bg-paper">
+      <PublicHeader />
+      <main id="main" className="mx-auto max-w-2xl px-4 pb-32 pt-8 sm:px-6">
+        <h1 className="text-4xl font-bold">{t('report.title')}</h1>
+        <p className="mt-2 text-neutral-600">{t('report.lead')}</p>
 
-      {/* Form */}
-      <main className="max-w-3xl mx-auto px-6 py-8">
-        <div className="mb-6">
-          <h1 className="text-2xl font-bold text-neutral-800 mb-1">Report an Emergency</h1>
-          <p className="text-sm text-neutral-500">
-            Fill out the form below. Fields marked with <span className="text-error">*</span> are required.
-            Unknown means you're not sure — that's okay.
-          </p>
-        </div>
-
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
-          {/* Incident Type */}
-          <div className="card card-body">
-            <label className="label">Incident Type <span className="text-error">*</span></label>
-            <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
-              {incidentTypes.map((t) => (
-                <button
-                  key={t.value}
-                  type="button"
-                  className={`p-3 rounded-lg border-2 text-center transition-all ${watch('type') === t.value
-                    ? 'border-primary-500 bg-primary-50 text-primary-700'
-                    : 'border-neutral-200 hover:border-neutral-300'
-                  }`}
-                  onClick={() => setValue('type', t.value)}
-                >
-                  <div className="text-xl mb-1">{t.icon}</div>
-                  <div className="text-xs font-medium">{t.label}</div>
+        <form id="report-form" onSubmit={handleSubmit(onSubmit)} className="mt-6 space-y-4" noValidate>
+          <Step n={1} title={t('report.what')}>
+            <div className="grid grid-cols-3 gap-2 sm:grid-cols-5" role="group" aria-label={t('report.what')}>
+              {incidentTypes.map(({ value, Icon }) => (
+                <button key={value} type="button" aria-pressed={type === value} onClick={() => setValue('type', value)}
+                  className={`flex min-h-[84px] flex-col items-center justify-center gap-1.5 rounded-control border-2 px-2 py-3 text-center text-sm font-semibold transition-colors ${type === value ? 'border-ink bg-ink text-paper' : 'border-line bg-surface text-ink hover:border-neutral-300'}`}>
+                  <Icon size={24} aria-hidden="true" />
+                  {t(`type.${value}`)}
                 </button>
               ))}
             </div>
             <input type="hidden" {...register('type')} />
-            {errors.type && <p className="text-xs text-error mt-1">{errors.type.message}</p>}
-          </div>
+          </Step>
 
-          {/* Description + AI */}
-          <div className="card card-body">
-            <div className="flex items-center justify-between mb-2">
-              <label className="label mb-0">Description <span className="text-error">*</span></label>
-              <button
-                type="button"
-                className="btn-ghost btn-sm text-primary-600"
-                onClick={handleAiExtract}
-                disabled={aiExtracting}
-              >
-                {aiExtracting ? <LoadingSpinner size={14} /> : <Sparkles size={14} />}
-                AI Assist
-              </button>
-            </div>
+          <Step n={2} title={t('report.describe')} hint={t('report.describeHint')}
+            aside={<button type="button" className="btn-ghost btn-sm text-primary-700" onClick={handleAiExtract} disabled={aiExtracting}>{aiExtracting ? <LoadingSpinner size={14} /> : <Sparkles size={15} aria-hidden="true" />}Fill the form from my words</button>}>
             <VoiceRecorder
               description={description ?? ''}
               onTranscript={handleVoiceTranscript}
               onRecordingId={(id) => {
                 setVoiceRecordingId(id);
-                if (id && (!description || description.trim().length < 10)) {
-                  setValue('description', 'Voice emergency report — transcription is still processing.', { shouldValidate: true });
-                }
+                if (id && (!description || description.trim().length < 10)) setValue('description', 'Voice emergency report — transcription is still processing.', { shouldValidate: true });
               }}
               onUploadingChange={setVoiceUploading}
               onLocalAudioSaved={() => toast('Audio was saved on this device only. It has not reached rescuers.', 'warning')}
             />
-            <textarea
-              {...register('description')}
-              rows={4}
-              className="input resize-none"
-              placeholder="Type what is happening, or record a voice report in English or Urdu."
-            />
-            {errors.description && <p className="text-xs text-error mt-1">{errors.description.message}</p>}
-            {aiError && (
-              <div className="flex items-start gap-2 mt-2 text-xs text-neutral-500 bg-neutral-50 rounded-lg p-2">
-                <AlertCircle size={14} className="flex-shrink-0 mt-0.5 text-yellow-500" />
-                <span>{aiError}. You can still fill the form manually below.</span>
-              </div>
-            )}
+            <label htmlFor="description" className="sr-only">{t('report.describe')}</label>
+            <textarea id="description" {...register('description')} rows={4} className="input mt-3 resize-y" placeholder={t('report.placeholder')} aria-invalid={!!errors.description} />
+            {errors.description && <p className="mt-1 text-sm font-medium text-critical">{errors.description.message}</p>}
+            {aiError && <p className="mt-2 flex items-start gap-2 rounded-control bg-neutral-100 p-3 text-sm text-neutral-600"><AlertCircle size={16} aria-hidden="true" className="mt-0.5 shrink-0 text-moderate" />{aiError}. You can still fill the form yourself.</p>}
             {aiResults && (
-              <div className="mt-2 text-xs text-neutral-600 bg-blue-50 rounded-lg p-3 border border-blue-100">
-                <p className="font-medium text-blue-700 mb-2">AI understanding — review before sending</p>
-                {typeof aiResults.summary === 'string' && aiResults.summary && <p className="mb-2">{aiResults.summary}</p>}
-                {Array.isArray(aiResults.immediate_needs) && aiResults.immediate_needs.length > 0 && <p><strong>Immediate needs:</strong> {aiResults.immediate_needs.join(', ')}</p>}
-                {Array.isArray(aiResults.uncertainties) && aiResults.uncertainties.length > 0 && (
-                  <div className="mt-2 rounded border border-amber-200 bg-amber-50 p-2 text-amber-900">
-                    <strong>Still uncertain:</strong>
-                    <ul className="mt-1 list-disc pl-4">{aiResults.uncertainties.map((item) => <li key={String(item)}>{String(item)}</li>)}</ul>
-                  </div>
-                )}
+              <div className="mt-3 rounded-control border border-primary-100 bg-primary-50 p-3 text-sm">
+                <p className="font-semibold text-primary-800">What we understood. Check it before sending.</p>
+                {typeof aiResults.summary === 'string' && aiResults.summary && <p className="mt-1 text-ink">{aiResults.summary}</p>}
+                {Array.isArray(aiResults.immediate_needs) && aiResults.immediate_needs.length > 0 && <p className="mt-1"><strong>Needs:</strong> {aiResults.immediate_needs.join(', ')}</p>}
+                {Array.isArray(aiResults.uncertainties) && aiResults.uncertainties.length > 0 && <p className="mt-1 text-moderate"><strong>Still unclear:</strong> {aiResults.uncertainties.map(String).join('; ')}</p>}
               </div>
             )}
-          </div>
+          </Step>
 
-          {/* Location */}
-          <div className="card card-body">
-            <label className="label">
-              Location <span className="text-error">*</span> — <span className="text-neutral-400 font-normal">Detected automatically; tap or drag the pin to correct it</span>
-            </label>
+          <Step n={3} title={t('report.where')} hint={t('report.whereHint')}>
             <LocationPicker onPick={(lat, lng) => void selectLocation(lat, lng)} />
-            {coords && (
-              <div className="mt-2 flex items-center gap-2 text-xs text-green-700">
-                <MapPin size={14} />
-                {locationName || 'Selected location'}
+            {coords && <p className="mt-2 flex items-center gap-2 text-sm font-medium text-success"><MapPin size={16} aria-hidden="true" />{locationName || 'Selected location'}</p>}
+          </Step>
+
+          <section className="card card-body">
+            <h2 className="text-xl font-semibold">{t('report.who')}</h2>
+            <div className="mt-3 grid grid-cols-2 gap-2" role="group" aria-label={t('report.who')}>
+              {[false, true].map((proxy) => (
+                <button key={String(proxy)} type="button" aria-pressed={proxyReport === proxy} onClick={() => setProxyReport(proxy)}
+                  className={`flex min-h-[52px] items-center justify-center gap-2 rounded-control border-2 px-3 text-[15px] font-semibold ${proxyReport === proxy ? 'border-primary-600 bg-primary-50 text-primary-800' : 'border-line text-ink hover:border-neutral-300'}`}>
+                  {proxy ? <Users size={18} aria-hidden="true" /> : <User size={18} aria-hidden="true" />}{proxy ? t('report.someoneElse') : t('report.me')}
+                </button>
+              ))}
+            </div>
+            {proxyReport && (
+              <div className="mt-3">
+                <label htmlFor="relationship" className="label">{t('report.relationship')}</label>
+                <input id="relationship" className="input" value={proxyRelationship} onChange={(event) => setProxyRelationship(event.target.value)} placeholder={t('report.relationshipPlaceholder')} />
               </div>
             )}
-          </div>
-
-          {/* Private photo evidence */}
-          <div className="card card-body">
-            <label className="label flex items-center gap-2"><Camera size={16} /> Photo evidence <span className="font-normal text-neutral-400">(optional)</span></label>
-            <input
-              type="file"
-              accept="image/jpeg,image/png,image/webp"
-              capture="environment"
-              className="input text-sm"
-              onChange={(event) => setPhoto(event.target.files?.[0] ?? null)}
-            />
-            <p className="mt-2 text-xs text-neutral-500">The website compresses the photo before sending it. It is stored privately and can be reviewed only by authorized responders and coordinators.</p>
-          </div>
-
-          <button type="button" className="card card-body w-full flex-row items-center justify-between text-left" onClick={() => setMoreDetails((value) => !value)} aria-expanded={moreDetails}>
-            <span><strong>Add helpful details</strong><span className="block text-xs font-normal text-neutral-500">Optional — send the basic report immediately if you are in danger</span></span>
-            <ChevronDown size={18} className={`transition-transform ${moreDetails ? 'rotate-180' : ''}`} />
-          </button>
-
-          {moreDetails && <>
-          {/* Details */}
-          <div className="card card-body space-y-4">
-            <div>
-              <label className="label">Area or Landmark <span className="text-neutral-400 font-normal">(optional)</span></label>
-              <input {...register('area_landmark')} className="input" placeholder="E.g., Riverside Colony Block 3" />
-            </div>
-
-            <div>
-              <label className="label">Number of People Affected <span className="text-error">*</span></label>
-              <input
-                type="number"
-                min={0}
-                step={1}
-                {...register('people_affected', { valueAsNumber: true })}
-                className="input w-32"
-              />
-              {errors.people_affected && <p className="text-xs text-error mt-1">{errors.people_affected.message}</p>}
-            </div>
-
-            <div className="grid sm:grid-cols-2 gap-4">
-              <TriStateField label="People Trapped?" name="people_trapped" register={register} watch={watch} setValue={setValue} />
-              <TriStateField label="Injuries or Medical Needs?" name="injuries_reported" register={register} watch={watch} setValue={setValue} />
-              <TriStateField label="Vulnerable People at Risk?" name="vulnerable_people" register={register} watch={watch} setValue={setValue} />
-              <TriStateField label="Danger Increasing?" name="danger_increasing" register={register} watch={watch} setValue={setValue} />
-            </div>
-
-            <p className="text-xs text-neutral-400 bg-neutral-50 rounded-lg p-2">
-              Unknown means you're not sure — this is treated as unknown, not as "no."
-              Coordinators will follow up to clarify.
-            </p>
-          </div>
-
-          {/* Contact (optional) */}
-          <div className="card card-body">
-            <label className="label text-sm font-medium text-neutral-700">Contact Details <span className="text-neutral-400 font-normal">(optional — used only for follow-up)</span></label>
-            <div className="grid sm:grid-cols-2 gap-3">
-              <input {...register('reporter_name')} className="input" placeholder="Your name" />
-              <input {...register('reporter_phone')} className="input" placeholder="Phone number" />
-            </div>
-            <p className="text-xs text-neutral-400 mt-2">Your contact information is protected and only visible to coordinators.</p>
-            <label className="mt-4 flex items-center gap-2 text-sm text-neutral-700">
-              <input type="checkbox" checked={proxyReport} onChange={(event) => setProxyReport(event.target.checked)} />
-              I am reporting for someone else
-            </label>
-            {proxyReport && <input className="input mt-2" value={proxyRelationship} onChange={(event) => setProxyRelationship(event.target.value)} placeholder="Your relationship to them (optional)" />}
-            <div className="mt-4">
-              <p className="label">Extra support needed <span className="font-normal text-neutral-400">(select any)</span></p>
+            <fieldset className="mt-4">
+              <legend className="label">{t('report.needs')}</legend>
+              <p className="-mt-1 mb-2 text-sm text-neutral-500">{t('report.needsHint')}</p>
               <div className="flex flex-wrap gap-2">
-                {[
-                  ['elderly', 'Older person'], ['child', 'Child'], ['disabled', 'Disabled'], ['pregnant', 'Pregnant'], ['cannot_walk', 'Cannot walk'],
-                  ['chronic_condition', 'Chronic illness'], ['needs_medicine', 'Needs medicine'], ['oxygen_dependency', 'Uses oxygen'],
-                  ['dialysis', 'Needs dialysis'], ['lives_alone', 'Lives alone'], ['no_phone', 'No phone'],
-                  ['power_dependency', 'Needs electricity'], ['limited_transport', 'No transport'],
-                ].map(([value, label]) => <label key={value} className="rounded-full border border-neutral-200 px-3 py-1.5 text-xs">
-                  <input type="checkbox" className="mr-1.5" checked={vulnerabilityFlags.includes(value)} onChange={(event) => setVulnerabilityFlags((current) => event.target.checked ? [...current, value] : current.filter((item) => item !== value))} />{label}
-                </label>)}
+                {NEEDS.map((need) => {
+                  const on = vulnerabilityFlags.includes(need);
+                  return (
+                    <label key={need} className={`inline-flex min-h-[40px] cursor-pointer items-center gap-2 rounded-full border px-3.5 text-[15px] has-[:focus-visible]:outline has-[:focus-visible]:outline-[3px] has-[:focus-visible]:outline-primary-600 ${on ? 'border-primary-600 bg-primary-50 font-semibold text-primary-800' : 'border-line bg-surface hover:border-neutral-300'}`}>
+                      <input type="checkbox" className="sr-only" checked={on} onChange={(event) => toggleNeed(need, event.target.checked)} />
+                      {on && <Check size={15} aria-hidden="true" />}{t(`need.${need}`)}
+                    </label>
+                  );
+                })}
               </div>
-            </div>
-          </div>
-          </>}
+            </fieldset>
+          </section>
 
-          {/* Submit */}
-          <div className="flex items-center justify-between gap-4">
-            <Link to="/" className="btn-ghost">
-              <ArrowLeft size={18} /> Cancel
-            </Link>
-            <button type="submit" className="btn-primary btn-lg" disabled={createIncident.isPending || voiceUploading}>
-              {createIncident.isPending ? (
-                <>
-                  <LoadingSpinner size={18} /> Submitting...
-                </>
-              ) : (
-                <>
-                  {voiceUploading ? 'Attaching audio…' : 'Send Emergency Report'} <ArrowRight size={18} />
-                </>
-              )}
+          <section className="card card-body">
+            <h2 className="flex items-center gap-2 text-xl font-semibold"><Camera size={20} aria-hidden="true" />{t('report.photo')}</h2>
+            <p className="mt-1 text-sm text-neutral-500">{t('report.photoHint')}</p>
+            <label className="btn-secondary mt-3 w-full cursor-pointer has-[:focus-visible]:outline has-[:focus-visible]:outline-[3px] has-[:focus-visible]:outline-primary-600 sm:w-auto">
+              <input type="file" accept="image/jpeg,image/png,image/webp" capture="environment" className="sr-only" onChange={(event) => setPhoto(event.target.files?.[0] ?? null)} />
+              <Camera size={18} aria-hidden="true" /><span className="truncate">{photo ? photo.name : t('report.photoPick')}</span>
+            </label>
+          </section>
+
+          <section className="card">
+            <button type="button" className="flex w-full items-center justify-between gap-3 p-5 text-start" onClick={() => setMoreDetails((value) => !value)} aria-expanded={moreDetails} aria-controls="more-details">
+              <span><span className="block font-display text-xl font-semibold">{t('report.more')}</span><span className="block text-sm text-neutral-500">{t('report.moreHint')}</span></span>
+              <ChevronDown size={20} aria-hidden="true" className={`shrink-0 transition-transform ${moreDetails ? 'rotate-180' : ''}`} />
             </button>
-          </div>
+            {moreDetails && (
+              <div id="more-details" className="space-y-5 border-t border-line p-5">
+                <div>
+                  <label htmlFor="people" className="label">{t('report.people')}</label>
+                  <input id="people" type="number" inputMode="numeric" min={0} step={1} {...register('people_affected', { valueAsNumber: true })} className="input w-32" />
+                  {errors.people_affected && <p className="mt-1 text-sm font-medium text-critical">{errors.people_affected.message}</p>}
+                </div>
+                <TriStateField label={t('report.trapped')} name="people_trapped" register={register} watch={watch} setValue={setValue} />
+                <TriStateField label={t('report.injured')} name="injuries_reported" register={register} watch={watch} setValue={setValue} />
+                <TriStateField label={t('report.vulnerable')} name="vulnerable_people" register={register} watch={watch} setValue={setValue} />
+                <TriStateField label={t('report.worse')} name="danger_increasing" register={register} watch={watch} setValue={setValue} />
+                <p className="rounded-control bg-neutral-100 p-3 text-sm text-neutral-600">{t('report.unsureNote')}</p>
+                <div>
+                  <label htmlFor="landmark" className="label">{t('report.landmark')}</label>
+                  <input id="landmark" {...register('area_landmark')} className="input" />
+                </div>
+                <fieldset>
+                  <legend className="label">{t('report.contact')}</legend>
+                  <p className="-mt-1 mb-2 text-sm text-neutral-500">{t('report.contactHint')}</p>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <input {...register('reporter_name')} className="input" placeholder={t('report.name')} aria-label={t('report.name')} autoComplete="name" />
+                    <input {...register('reporter_phone')} className="input" placeholder={t('report.phone')} aria-label={t('report.phone')} type="tel" autoComplete="tel" inputMode="tel" />
+                  </div>
+                </fieldset>
+              </div>
+            )}
+          </section>
         </form>
       </main>
+
+      <div className="fixed inset-x-0 bottom-0 z-[500] border-t border-line bg-surface/95 backdrop-blur">
+        <div className="mx-auto flex max-w-2xl items-center gap-3 px-4 py-3 sm:px-6">
+          <Link to="/" className="btn-ghost hidden sm:inline-flex">{t('nav.home')}</Link>
+          <button type="submit" form="report-form" className="btn-danger btn-lg flex-1 text-lg" disabled={createIncident.isPending || voiceUploading}>
+            {createIncident.isPending ? <><LoadingSpinner size={18} className="border-white/40 border-t-white" />{t('report.sending')}</> : voiceUploading ? t('report.attaching') : <><Send size={20} aria-hidden="true" />{t('report.send')}</>}
+          </button>
+        </div>
+      </div>
 
       <Modal open={!!followup} onClose={() => answerFollowup(null)} title="One quick question" size="sm">
         {followup && (
           <div>
-            <p className="text-base font-medium text-neutral-800 mb-4 flex items-start gap-2">
-              <MessageCircleQuestion size={20} className="text-primary-600 flex-shrink-0 mt-0.5" />
-              {followup.q.question}
-            </p>
-            <div className="grid grid-cols-3 gap-2 mb-4">
-              <button type="button" className="btn-danger btn-lg" onClick={() => answerFollowup('yes')}>Yes</button>
-              <button type="button" className="btn-secondary btn-lg" onClick={() => answerFollowup('no')}>No</button>
-              <button type="button" className="btn-secondary btn-lg" onClick={() => answerFollowup('unknown')}>Not sure</button>
+            <p className="mb-4 flex items-start gap-2 text-lg font-semibold text-ink"><MessageCircleQuestion size={22} aria-hidden="true" className="mt-0.5 shrink-0 text-primary-600" />{followup.q.question}</p>
+            <div className="mb-3 grid grid-cols-3 gap-2">
+              <button type="button" className="btn-danger btn-lg" onClick={() => answerFollowup('yes')}>{t('tri.yes')}</button>
+              <button type="button" className="btn-secondary btn-lg" onClick={() => answerFollowup('no')}>{t('tri.no')}</button>
+              <button type="button" className="btn-secondary btn-lg" onClick={() => answerFollowup('unknown')}>{t('tri.unknown')}</button>
             </div>
-            <button type="button" className="btn-ghost w-full" onClick={() => answerFollowup(null)}>
-              Skip and send report now <ArrowRight size={16} />
-            </button>
+            <button type="button" className="btn-ghost w-full" onClick={() => answerFollowup(null)}>Skip and send now</button>
           </div>
         )}
       </Modal>
@@ -557,44 +441,46 @@ export function ReportPage() {
   );
 }
 
-// Reusable tri-state radio field
-function TriStateField({
-  label,
-  name,
-  register,
-  watch,
-  setValue,
-}: {
+function Step({ n, title, hint, aside, children }: { n: number; title: string; hint?: string; aside?: React.ReactNode; children: React.ReactNode }) {
+  return (
+    <section className="card card-body">
+      <div className="mb-3 flex flex-wrap items-start justify-between gap-2">
+        <div className="flex items-start gap-3">
+          <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-ink font-display text-base font-bold text-white" aria-hidden="true">{n}</span>
+          <div>
+            <h2 className="text-xl font-semibold">{title}</h2>
+            {hint && <p className="text-sm text-neutral-500">{hint}</p>}
+          </div>
+        </div>
+        {aside}
+      </div>
+      {children}
+    </section>
+  );
+}
+
+function TriStateField({ label, name, register, watch, setValue }: {
   label: string;
   name: 'people_trapped' | 'injuries_reported' | 'vulnerable_people' | 'danger_increasing';
   register: ReturnType<typeof useForm<FormData>>['register'];
   watch: ReturnType<typeof useForm<FormData>>['watch'];
   setValue: ReturnType<typeof useForm<FormData>>['setValue'];
 }) {
+  const { t } = useLang();
   const value = watch(name);
+  const selected: Record<TriState, string> = { yes: 'border-critical bg-critical-soft text-critical', no: 'border-success bg-success-soft text-success', unknown: 'border-neutral-500 bg-neutral-100 text-ink' };
   return (
-    <div>
-      <label className="label">{label}</label>
-      <div className="flex gap-1">
-        {triStateOptions.map((opt) => (
-          <button
-            key={opt.value}
-            type="button"
-            className={`flex-1 py-1.5 rounded-md text-xs font-medium border transition-all ${value === opt.value
-              ? opt.value === 'yes'
-                ? 'border-red-400 bg-red-50 text-red-700'
-                : opt.value === 'no'
-                ? 'border-green-400 bg-green-50 text-green-700'
-                : 'border-neutral-400 bg-neutral-50 text-neutral-700'
-              : 'border-neutral-200 text-neutral-400 hover:border-neutral-300'
-            }`}
-            onClick={() => setValue(name, opt.value)}
-          >
-            {opt.label}
+    <fieldset>
+      <legend className="label">{label}</legend>
+      <div className="grid grid-cols-3 gap-2">
+        {(['yes', 'no', 'unknown'] as const).map((option) => (
+          <button key={option} type="button" aria-pressed={value === option} onClick={() => setValue(name, option)}
+            className={`min-h-[44px] rounded-control border-2 text-[15px] font-semibold transition-colors ${value === option ? selected[option] : 'border-line text-neutral-600 hover:border-neutral-300'}`}>
+            {t(`tri.${option}`)}
           </button>
         ))}
-        <input type="hidden" {...register(name)} />
       </div>
-    </div>
+      <input type="hidden" {...register(name)} />
+    </fieldset>
   );
 }

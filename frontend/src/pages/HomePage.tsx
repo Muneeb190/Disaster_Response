@@ -1,121 +1,81 @@
 import { Link } from 'react-router-dom';
-import { Radio, Siren, ShieldAlert, ArrowRight, Search, Activity, MapPin, Users, Clock } from 'lucide-react';
-import { useAuth } from '@/auth/AuthContext';
+import { Siren, Search, UserPlus, CloudRain, Eye } from 'lucide-react';
+import { PublicHeader } from '@/components/layout/PublicHeader';
+import { useLang } from '@/lib/i18n';
+import { useWeatherWarnings } from '@/hooks/useWeatherWarnings';
 
 export function HomePage() {
-  const auth = useAuth();
+  const { t } = useLang();
+  const weather = useWeatherWarnings();
+  const warnings = weather.data?.warnings ?? [];
+
   return (
-    <div className="min-h-screen bg-neutral-50">
-      {/* Header */}
-      <header className="bg-white border-b border-neutral-200">
-        <div className="max-w-5xl mx-auto px-6 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-lg bg-primary-600 flex items-center justify-center">
-              <Radio size={20} className="text-white" />
-            </div>
-            <div>
-              <h1 className="text-base font-bold text-neutral-800">ResQNet</h1>
-              <p className="text-[10px] text-neutral-400 uppercase tracking-widest">Disaster Response Platform</p>
-            </div>
-          </div>
-          <Link to={auth.user ? '/portal' : '/login'} className="btn-ghost btn-sm">
-            <ShieldAlert size={16} />
-            {auth.user ? 'My Workspaces' : 'Sign In'}
-          </Link>
-        </div>
-      </header>
+    <div className="min-h-screen bg-paper">
+      <PublicHeader />
+      <main id="main" className="mx-auto max-w-5xl px-4 pb-16 pt-10 sm:px-6 sm:pt-14">
+        <div className="grid gap-10 lg:grid-cols-[1.25fr_1fr] lg:gap-14">
+          <section>
+            <h1 className="font-display text-[40px] font-bold leading-[1.05] sm:text-[56px]">{t('home.title')}</h1>
+            <p className="mt-4 max-w-[34em] text-lg text-neutral-600">{t('home.lead')}</p>
 
-      {/* Hero */}
-      <main className="max-w-5xl mx-auto px-6 py-12">
-        <div className="text-center mb-10">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-red-50 text-red-700 text-xs font-medium mb-4">
-            <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse-soft" />
-            Emergency Response System — Active
-          </div>
-          <h2 className="text-3xl sm:text-4xl font-bold text-neutral-900 mb-3 tracking-tight">
-            Report an Emergency. Get Help Fast.
-          </h2>
-          <p className="text-neutral-600 max-w-2xl mx-auto leading-relaxed">
-            ResQNet connects citizens with emergency coordinators. Submit a report in seconds —
-            our system prioritizes incidents by urgency and coordinates rescue teams to where they're needed most.
-          </p>
-        </div>
+            <Link to="/report" className="group mt-8 flex items-center gap-4 rounded-panel bg-danger px-5 py-5 text-white transition-colors hover:bg-[#B91C1C] sm:px-6">
+              <Siren size={30} aria-hidden="true" className="shrink-0" />
+              <span>
+                <span className="block font-display text-2xl font-bold">{t('home.report')}</span>
+                <span className="block text-[15px] text-white/85">{t('home.reportHint')}</span>
+              </span>
+            </Link>
 
-        {/* Action buttons */}
-        <div className="flex flex-col sm:flex-row gap-4 justify-center mb-12">
-          <Link to="/report" className="btn-primary btn-lg">
-            <Siren size={20} />
-            Report an Emergency
-          </Link>
-          <Link to="/status" className="btn-secondary btn-lg">
-            <Search size={20} />
-            Check Report Status
-          </Link>
-          <Link to="/register-at-risk" className="btn-secondary btn-lg">
-            Join At-Risk Register
-          </Link>
-        </div>
+            <div className="mt-3 divide-y divide-line overflow-hidden rounded-panel border border-line bg-surface">
+              <Link to="/status" className="flex items-start gap-4 px-5 py-4 hover:bg-neutral-50">
+                <Search size={22} aria-hidden="true" className="mt-0.5 shrink-0 text-primary-600" />
+                <span><span className="block font-semibold">{t('home.track')}</span><span className="block text-[15px] text-neutral-500">{t('home.trackHint')}</span></span>
+              </Link>
+              <Link to="/register-at-risk" className="flex items-start gap-4 px-5 py-4 hover:bg-neutral-50">
+                <UserPlus size={22} aria-hidden="true" className="mt-0.5 shrink-0 text-primary-600" />
+                <span><span className="block font-semibold">{t('home.register')}</span><span className="block text-[15px] text-neutral-500">{t('home.registerHint')}</span></span>
+              </Link>
+            </div>
+          </section>
 
-        {/* Feature cards */}
-        <div className="grid sm:grid-cols-3 gap-4 mb-12">
-          <div className="card card-body">
-            <div className="w-10 h-10 rounded-lg bg-blue-50 flex items-center justify-center mb-3">
-              <MapPin size={20} className="text-primary-600" />
-            </div>
-            <h3 className="text-sm font-semibold text-neutral-800 mb-1">Location-Aware</h3>
-            <p className="text-xs text-neutral-500 leading-relaxed">
-              Pin your exact location on the map so rescue teams can reach you quickly.
-            </p>
-          </div>
-          <div className="card card-body">
-            <div className="w-10 h-10 rounded-lg bg-green-50 flex items-center justify-center mb-3">
-              <Activity size={20} className="text-green-600" />
-            </div>
-            <h3 className="text-sm font-semibold text-neutral-800 mb-1">Priority Scoring</h3>
-            <p className="text-xs text-neutral-500 leading-relaxed">
-              Life-threatening reports are flagged instantly and moved to the top of the queue.
-            </p>
-          </div>
-          <div className="card card-body">
-            <div className="w-10 h-10 rounded-lg bg-orange-50 flex items-center justify-center mb-3">
-              <Users size={20} className="text-orange-600" />
-            </div>
-            <h3 className="text-sm font-semibold text-neutral-800 mb-1">Real-Time Coordination</h3>
-            <p className="text-xs text-neutral-500 leading-relaxed">
-              Coordinators see your report immediately and assign the nearest suitable team.
-            </p>
-          </div>
+          <aside className="space-y-4">
+            <section className={warnings.length ? 'rounded-panel border border-high-line bg-high-soft p-5' : 'rounded-panel border border-line bg-surface p-5'} aria-live="polite">
+              <h2 className="flex items-center gap-2 text-lg font-semibold"><CloudRain size={20} aria-hidden="true" className={warnings.length ? 'text-high' : 'text-primary-600'} />{t('home.warning')}</h2>
+              {weather.isLoading && <p className="mt-2 text-neutral-500">…</p>}
+              {!weather.isLoading && !warnings.length && <p className="mt-2 text-neutral-600">{weather.error ? t('home.forecastDown') : t('home.noWarning')}</p>}
+              {warnings.slice(0, 2).map((warning) => (
+                <div key={warning.id} className="mt-3">
+                  <p className="font-semibold text-high">{warning.title}</p>
+                  <p className="mt-0.5 text-[15px] text-neutral-700">{warning.detail}</p>
+                  <ul className="mt-2 list-disc space-y-1 ps-5 text-[15px] text-neutral-700">{warning.instructions.slice(0, 2).map((line) => <li key={line}>{line}</li>)}</ul>
+                </div>
+              ))}
+              <p className="mt-3 text-[13px] text-neutral-500">{t('home.source')}</p>
+            </section>
+
+            <section className="rounded-panel bg-ink p-5 text-white">
+              <h2 className="flex items-center gap-2 text-lg font-semibold text-white"><Eye size={20} aria-hidden="true" className="text-flood" />{t('home.unseenTitle')}</h2>
+              <p className="mt-2 text-[15px] text-[#C9D6D4]">{t('home.unseenBody')}</p>
+            </section>
+          </aside>
         </div>
 
-        {/* Disclaimer */}
-        <div className="card border-l-4 border-l-yellow-500 bg-yellow-50/50">
-          <div className="p-4 flex items-start gap-3">
-            <ShieldAlert size={18} className="text-yellow-600 flex-shrink-0 mt-0.5" />
-            <div>
-              <p className="text-xs text-neutral-700 font-medium mb-1">Emergency Use Disclaimer</p>
-              <p className="text-xs text-neutral-600 leading-relaxed">
-                Reports are shared with authorized coordinators. In a real emergency, contact local emergency services directly.
-                In a real emergency, always contact your local emergency services number directly.
-                This system is designed to support — not replace — official emergency response channels.
-              </p>
-            </div>
-          </div>
-        </div>
-
-        {/* Demo info */}
-        <div className="mt-8 flex items-center justify-center gap-2 text-xs text-neutral-400">
-          <Clock size={14} />
-          <span>Access is protected by role-based permissions</span>
-        </div>
+        <section className="mt-14">
+          <h2 className="text-2xl font-semibold">{t('home.after')}</h2>
+          <ol className="mt-5 grid gap-px overflow-hidden rounded-panel border border-line bg-line sm:grid-cols-3">
+            {(['home.step1', 'home.step2', 'home.step3'] as const).map((key, index) => (
+              <li key={key} className="bg-surface p-5">
+                <span className="font-display text-3xl font-bold text-primary-600">{index + 1}</span>
+                <p className="mt-2 text-[15px] text-neutral-700">{t(key)}</p>
+              </li>
+            ))}
+          </ol>
+        </section>
       </main>
-
-      {/* Footer */}
-      <footer className="bg-white border-t border-neutral-200 mt-8">
-        <div className="max-w-5xl mx-auto px-6 py-4 flex flex-col sm:flex-row items-center justify-between gap-2">
-          <p className="text-xs text-neutral-400">ResQNet — Hackathon Demo Project</p>
-          <Link to={auth.user ? '/portal' : '/signup'} className="text-xs text-primary-600 hover:underline flex items-center gap-1">
-            {auth.user ? 'Open Workspaces' : 'Create Account'} <ArrowRight size={12} />
-          </Link>
+      <footer className="border-t border-line">
+        <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-2 px-4 py-5 text-sm text-neutral-500 sm:px-6">
+          <span>{t('home.footer')}</span>
+          <Link to="/login" className="font-semibold text-primary-700 hover:underline">{t('nav.signin')}</Link>
         </div>
       </footer>
     </div>

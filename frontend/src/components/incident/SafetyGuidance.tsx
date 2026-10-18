@@ -42,7 +42,7 @@ export function SafetyGuidance({ type }: { type: IncidentType }) {
           <h3 className="flex items-center gap-2 text-sm font-semibold text-amber-950"><ShieldAlert size={16} /> Immediate safety guidance</h3>
           <p className="mt-1 text-xs text-amber-900">General guidance only—follow local emergency authorities and do not take an unsafe route.</p>
         </div>
-        <div className="flex rounded-lg border border-amber-300 bg-white p-0.5 text-xs">
+        <div className="flex rounded-lg border border-amber-300 bg-surface p-0.5 text-xs">
           <button className={`rounded px-2 py-1 ${language === 'en' ? 'bg-amber-700 text-white' : ''}`} onClick={() => setLanguage('en')}>English</button>
           <button className={`rounded px-2 py-1 ${language === 'ur' ? 'bg-amber-700 text-white' : ''}`} onClick={() => setLanguage('ur')}>اردو</button>
         </div>

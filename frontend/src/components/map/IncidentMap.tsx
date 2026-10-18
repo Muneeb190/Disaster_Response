@@ -8,6 +8,7 @@ import type { DangerZone, Incident, RescueTeam, Resource, Shelter, TeamStatus } 
 import { PriorityBadge } from '@/components/ui/Badges';
 import { INCIDENT_TYPE_LABELS, STATUS_LABELS, TEAM_MARKER_COLORS, TEAM_STATUS_LABELS } from '@/types';
 import { timeAgo } from '@/lib/utils';
+import { locate, LOCATE_HELP, type LocateFailure } from '@/lib/geolocation';
 
 // Custom div-icon factory for colored markers
 function makeIcon(color: string, iconClass: string = '') {
@@ -21,16 +22,16 @@ function makeIcon(color: string, iconClass: string = '') {
 }
 
 const incidentIcons = {
-  critical: makeIcon('#dc2626', '!'),
-  high: makeIcon('#ea580c', '!'),
-  moderate: makeIcon('#ca8a04', '·'),
-  low: makeIcon('#3b82f6', 'i'),
+  critical: makeIcon('#C8261B', '!'),
+  high: makeIcon('#C2510C', '!'),
+  moderate: makeIcon('#B98410', '·'),
+  low: makeIcon('#5F8C79', 'i'),
 };
 
 const teamIcons = Object.fromEntries(Object.entries(TEAM_MARKER_COLORS).map(([status, color]) => [status, makeIcon(color, 'T')])) as Record<TeamStatus, L.DivIcon>;
-const resourceIcon = makeIcon('#8b5cf6', 'R');
-const shelterIcon = makeIcon('#0891b2', 'S');
-const fullShelterIcon = makeIcon('#64748b', 'S');
+const resourceIcon = makeIcon('#44585A', 'R');
+const shelterIcon = makeIcon('#2F7A57', 'S');
+const fullShelterIcon = makeIcon('#7A8B8A', 'S');
 const ISLAMABAD: [number, number] = [33.6844, 73.0479];
 const mapTilerKey = import.meta.env.VITE_MAPTILER_KEY;
 const tileUrl = mapTilerKey ? `https://api.maptiler.com/maps/streets-v2/{z}/{x}/{y}.png?key=${mapTilerKey}` : 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
@@ -64,9 +65,13 @@ interface IncidentMapProps {
   height?: string;
   dangerZones?: DangerZone[];
   route?: [number, number][];
+  areas?: MapArea[];
 }
 
-export function IncidentMap({ incidents = [], teams = [], resources = [], shelters = [], onIncidentClick, showIncidents = true, showTeams = true, showResources = true, showShelters = true, height = '500px', dangerZones = [], route = [] }: IncidentMapProps) {
+// Neighbourhood vulnerability (cool shading = information) and silent zones (warm dashed outline = needs checking).
+export type MapArea = { id: string; name: string; vulnerability_index: number; boundary: { type: 'Polygon'; coordinates: number[][][] }; silent?: boolean; is_demo?: boolean };
+
+export function IncidentMap({ incidents = [], teams = [], resources = [], shelters = [], onIncidentClick, showIncidents = true, showTeams = true, showResources = true, showShelters = true, height = '500px', dangerZones = [], route = [], areas = [] }: IncidentMapProps) {
   const locations = useMemo(
     () => [...incidents.map((i) => i.location), ...teams.map((t) => t.location), ...resources.map((r) => r.location), ...shelters.map((s) => s.location)],
     [incidents, teams, resources, shelters],
@@ -79,8 +84,9 @@ export function IncidentMap({ incidents = [], teams = [], resources = [], shelte
           url={tileUrl}
         />
         <FitBounds locations={locations} />
-        {dangerZones.map((zone) => <GeoJSON key={zone.id} data={zone.geojson as GeoJsonObject} pathOptions={{ color: zone.severity === 'critical' ? '#dc2626' : '#ea580c', fillOpacity: zone.verification_status === 'confirmed' ? 0.28 : 0.14, dashArray: zone.verification_status === 'provisional' ? '6 6' : undefined }}><Popup><strong>{zone.name}</strong><br />{zone.verification_status === 'provisional' ? 'Unverified public report' : 'Confirmed danger zone'}<br />{zone.instructions}</Popup></GeoJSON>)}
-        {route.length > 1 && <Polyline positions={route} pathOptions={{ color: '#2563eb', weight: 6, opacity: 0.85 }} />}
+        {areas.map((area) => <GeoJSON key={`${area.id}-${area.silent ? 's' : 'n'}`} data={area.boundary as GeoJsonObject} pathOptions={{ color: area.silent ? '#C2510C' : '#0B6E66', weight: area.silent ? 3 : 1, dashArray: area.silent ? '8 6' : undefined, fillColor: '#0B6E66', fillOpacity: 0.06 + Number(area.vulnerability_index) * 0.3 }}><Popup><strong>{area.name}</strong><br />Vulnerability {Math.round(Number(area.vulnerability_index) * 100)}%{area.silent && <><br /><strong>Silent zone:</strong> under warning with fewer reports than expected</>}{area.is_demo && <><br />Demo data</>}</Popup></GeoJSON>)}
+        {dangerZones.map((zone) => <GeoJSON key={zone.id} data={zone.geojson as GeoJsonObject} pathOptions={{ color: zone.severity === 'critical' ? '#C8261B' : '#C2510C', fillOpacity: zone.verification_status === 'confirmed' ? 0.28 : 0.14, dashArray: zone.verification_status === 'provisional' ? '6 6' : undefined }}><Popup><strong>{zone.name}</strong><br />{zone.verification_status === 'provisional' ? 'Unverified public report' : 'Confirmed danger zone'}<br />{zone.instructions}</Popup></GeoJSON>)}
+        {route.length > 1 && <Polyline positions={route} pathOptions={{ color: '#0B6E66', weight: 6, opacity: 0.85 }} />}
 
         {showIncidents && incidents.map((inc) => {
           const pos = parseLocation(inc.location);
@@ -98,7 +104,7 @@ export function IncidentMap({ incidents = [], teams = [], resources = [], shelte
                   <p className="text-neutral-600"><strong>Status:</strong> {STATUS_LABELS[inc.status]}</p>
                   <p className="text-neutral-600"><strong>People:</strong> {inc.people_affected}</p>
                   {inc.area_landmark && <p className="text-neutral-600"><strong>Area:</strong> {inc.area_landmark}</p>}
-                  <p className="text-neutral-400 text-[10px]">{timeAgo(inc.created_at)}</p>
+                  <p className="text-neutral-400 text-xs">{timeAgo(inc.created_at)}</p>
                   {onIncidentClick && (
                     <button className="text-primary-600 font-medium hover:underline" onClick={() => onIncidentClick(inc.id)}>
                       View details →
@@ -122,7 +128,7 @@ export function IncidentMap({ incidents = [], teams = [], resources = [], shelte
                     <p className="text-neutral-600"><strong>Code:</strong> {team.team_code}</p>
                     <p className="text-neutral-600"><strong>Status:</strong> {TEAM_STATUS_LABELS[team.status]}</p>
                     <p className="text-neutral-600"><strong>Capabilities:</strong> {team.capabilities.join(', ') || '—'}</p>
-                    <p className="text-neutral-400 text-[10px]">Position {team.last_location_update ? `reported ${timeAgo(team.last_location_update)}` : 'time unknown'}</p>
+                    <p className="text-neutral-400 text-xs">Position {team.last_location_update ? `reported ${timeAgo(team.last_location_update)}` : 'time unknown'}</p>
                   </div>
                 </Popup>
               </Marker>
@@ -142,7 +148,7 @@ export function IncidentMap({ incidents = [], teams = [], resources = [], shelte
                     <span className="font-bold text-neutral-800">{shelter.name}</span>
                     <p className="text-neutral-600"><strong>Space:</strong> {Math.max(0, shelter.capacity - shelter.occupancy)} of {shelter.capacity} free{shelter.status === 'full' && ' (full)'}</p>
                     <p className="text-neutral-600"><strong>Facilities:</strong> {facilities.join(', ') || 'none confirmed'}</p>
-                    <p className="text-neutral-400 text-[10px]">Updated {timeAgo(shelter.last_updated_at)} · not a safety guarantee</p>
+                    <p className="text-neutral-400 text-xs">Updated {timeAgo(shelter.last_updated_at)} · not a safety guarantee</p>
                   </div>
                 </Popup>
               </Marker>
@@ -178,16 +184,14 @@ export function IncidentMap({ incidents = [], teams = [], resources = [], shelte
 export function LocationPicker({ onPick, initialPos, center: viewCenter }: { onPick: (lat: number, lng: number) => void; initialPos?: [number, number]; center?: [number, number] }) {
   const center = initialPos || viewCenter || ISLAMABAD;
   const [locateRequest, setLocateRequest] = useState(1);
-  const [locationStatus, setLocationStatus] = useState<'locating' | 'found' | 'unavailable'>('locating');
+  const [locationStatus, setLocationStatus] = useState<LocationStatus>(initialPos ? 'found' : 'locating');
   return (
     <div>
-      <div className="mb-2 flex flex-wrap items-center justify-between gap-2 text-xs">
-        <span role="status" aria-live="polite" className={locationStatus === 'found' ? 'text-green-700' : locationStatus === 'unavailable' ? 'text-amber-700' : 'text-neutral-600'}>
-          {locationStatus === 'locating' && 'Requesting your device location…'}
-          {locationStatus === 'found' && 'Device location detected. You can move the pin by tapping the map.'}
-          {locationStatus === 'unavailable' && 'Automatic location was unavailable. Tap the map to place the pin manually.'}
+      <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+        <span role="status" aria-live="polite" className={`text-sm ${locationStatus === 'found' ? 'text-success' : locationStatus === 'locating' ? 'text-neutral-600' : 'text-moderate'}`}>
+          {locationStatus === 'locating' ? 'Finding your location… allow it if your browser asks.' : locationStatus === 'found' ? 'Location found. Drag the pin or tap the map to correct it.' : LOCATE_HELP[locationStatus]}
         </span>
-        <button type="button" className="btn-secondary btn-sm" onClick={() => { setLocationStatus('locating'); setLocateRequest((value) => value + 1); }}>
+        <button type="button" className="btn-secondary btn-sm" disabled={locationStatus === 'locating'} onClick={() => { setLocationStatus('locating'); setLocateRequest((value) => value + 1); }}>
           Use my location
         </button>
       </div>
@@ -204,7 +208,9 @@ export function LocationPicker({ onPick, initialPos, center: viewCenter }: { onP
   );
 }
 
-function LocationClickHandler({ onPick, initialPos, locateRequest, onLocationStatus }: { onPick: (lat: number, lng: number) => void; initialPos?: [number, number]; locateRequest: number; onLocationStatus: (status: 'locating' | 'found' | 'unavailable') => void }) {
+type LocationStatus = 'locating' | 'found' | LocateFailure;
+
+function LocationClickHandler({ onPick, initialPos, locateRequest, onLocationStatus }: { onPick: (lat: number, lng: number) => void; initialPos?: [number, number]; locateRequest: number; onLocationStatus: (status: LocationStatus) => void }) {
   const map = useMap();
   const markerRef = useRef<L.Marker | null>(null);
   const onPickRef = useRef(onPick);
@@ -240,20 +246,14 @@ function LocationClickHandler({ onPick, initialPos, locateRequest, onLocationSta
   }, [map, initialPos, placeMarker]);
 
   useEffect(() => {
-    if (initialPos || !navigator.geolocation) {
-      if (!initialPos) onLocationStatus('unavailable');
-      return;
-    }
+    // A preset position only skips the automatic lookup; "Use my location" (locateRequest > 1) still works.
+    if (initialPos && locateRequest === 1) return;
     let active = true;
-    navigator.geolocation.getCurrentPosition(
-      ({ coords }) => {
-        if (!active) return;
-        placeMarker(coords.latitude, coords.longitude, true);
-        onLocationStatus('found');
-      },
-      () => { if (active) onLocationStatus('unavailable'); },
-      { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 },
-    );
+    void locate().then((result) => {
+      if (!active) return;
+      if (result.ok) { placeMarker(result.latitude, result.longitude, true); onLocationStatus('found'); }
+      else onLocationStatus(result.reason);
+    });
     return () => { active = false; };
   }, [locateRequest, initialPos, map, onLocationStatus, placeMarker]);
 

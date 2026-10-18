@@ -73,7 +73,7 @@ export function WhyPriorityPanel({ incident }: { incident: Incident }) {
       )}
       {gaps.length > 0 && (
         <div className="mt-3 pt-2 border-t border-neutral-200">
-          <p className="text-[11px] font-medium text-amber-700 mb-1">Not yet known (treated as "cannot assume safe")</p>
+          <p className="text-xs font-medium text-amber-700 mb-1">Not yet known (treated as "cannot assume safe")</p>
           <ul className="space-y-1">
             {gaps.map((f) => (
               <li key={f.key} className="text-xs text-neutral-600 flex items-start gap-2">
@@ -113,7 +113,7 @@ export function ConfidencePanel({ incident }: { incident: Incident }) {
           Serious but uncertain. Check urgently. Low confidence never lowers the priority.
         </p>
       ) : (
-        <p className="text-[11px] text-neutral-400 mt-3">Confidence shows how well supported the report is, not how dangerous it is.</p>
+        <p className="text-xs text-neutral-400 mt-3">Confidence shows how well supported the report is, not how dangerous it is.</p>
       )}
     </div>
   );

@@ -82,7 +82,7 @@ export function TeamsPage() {
                             <div className="w-10 h-10 rounded-lg bg-primary-50 flex items-center justify-center"><Users size={20} className="text-primary-600" /></div>
                             <div>
                               <p className="text-sm font-semibold text-neutral-800">{team.name}</p>
-                              <code className="text-[10px] text-neutral-400">{team.team_code}</code>
+                              <code className="text-xs text-neutral-400">{team.team_code}</code>
                             </div>
                           </div>
                           <div className="flex flex-col items-end gap-1"><TeamStatusBadge status={team.status} />{team.is_demo && <DemoBadge />}</div>
@@ -97,11 +97,11 @@ export function TeamsPage() {
                         <div className="space-y-2 text-xs">
                           <div>
                             <p className="text-neutral-400 mb-1">Trained for</p>
-                            <div className="flex flex-wrap gap-1">{team.capabilities.length ? team.capabilities.map((cap) => <span key={cap} className="badge-info text-[10px]">{cap.replace(/_/g, ' ')}</span>) : <span className="text-neutral-400">—</span>}</div>
+                            <div className="flex flex-wrap gap-1">{team.capabilities.length ? team.capabilities.map((cap) => <span key={cap} className="badge-info text-xs">{cap.replace(/_/g, ' ')}</span>) : <span className="text-neutral-400">—</span>}</div>
                           </div>
                           <div>
                             <p className="text-neutral-400 mb-1">Equipment</p>
-                            <div className="flex flex-wrap gap-1">{team.equipment.length ? team.equipment.map((eq) => <span key={eq} className="badge-neutral text-[10px]">{eq.replace(/_/g, ' ')}</span>) : <span className="text-neutral-400">—</span>}</div>
+                            <div className="flex flex-wrap gap-1">{team.equipment.length ? team.equipment.map((eq) => <span key={eq} className="badge-neutral text-xs">{eq.replace(/_/g, ' ')}</span>) : <span className="text-neutral-400">—</span>}</div>
                           </div>
                           <div className="flex items-center gap-2 text-neutral-500"><Users size={12} /> {team.capacity} personnel</div>
                           <div className={`flex items-center gap-2 ${stale ? 'text-amber-700' : 'text-neutral-400'}`}>

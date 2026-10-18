@@ -7,7 +7,11 @@ const json = (body: unknown, status = 200) => new Response(JSON.stringify(body),
 
 type Warning = { id: string; title: string; severity: "moderate" | "high" | "critical"; detail: string; instructions: string[]; incident_types: string[] };
 
-async function persistWarnings(warnings: Warning[], latitude: number, longitude: number) {
+// Only the fixed Islamabad forecast is persisted; request-supplied coordinates never become official zones.
+const ISLAMABAD = { latitude: 33.6844, longitude: 73.0479 };
+
+async function persistWarnings(warnings: Warning[]) {
+  const { latitude, longitude } = ISLAMABAD;
   const base = Deno.env.get("SUPABASE_URL");
   const key = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
   if (!base || !key || !warnings.length) return;
@@ -47,8 +51,8 @@ Deno.serve(async (req: Request) => {
   if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
   try {
     const input = await req.json().catch(() => ({})) as { latitude?: number; longitude?: number; area?: string };
-    const latitude = Number.isFinite(input.latitude) ? Number(input.latitude) : 33.6844;
-    const longitude = Number.isFinite(input.longitude) ? Number(input.longitude) : 73.0479;
+    const latitude = Number.isFinite(input.latitude) ? Number(input.latitude) : ISLAMABAD.latitude;
+    const longitude = Number.isFinite(input.longitude) ? Number(input.longitude) : ISLAMABAD.longitude;
     if (latitude < 23 || latitude > 38 || longitude < 60 || longitude > 78) return json({ error: "Location must be within Pakistan" }, 400);
     const url = new URL("https://api.open-meteo.com/v1/forecast");
     url.searchParams.set("latitude", String(latitude));
@@ -93,7 +97,7 @@ Deno.serve(async (req: Request) => {
       detail: "Thunderstorms are forecast within the next 24 hours.", incident_types: ["flood", "fire", "medical_emergency", "other"],
       instructions: ["Move indoors and avoid rooftops, open ground, and isolated trees.", "Unplug sensitive equipment where safe and avoid contact with electrical wiring.", "Delay travel during intense lightning or rain."],
     });
-    await persistWarnings(warnings, latitude, longitude);
+    if (latitude === ISLAMABAD.latitude && longitude === ISLAMABAD.longitude) await persistWarnings(warnings);
     return json({ area: input.area || "Islamabad, Pakistan", latitude, longitude, issued_at: new Date().toISOString(), valid_hours: 24, source: "Open-Meteo forecast", warnings });
   } catch (error) {
     console.error(error);

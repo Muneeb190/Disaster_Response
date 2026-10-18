@@ -30,12 +30,12 @@ export function Modal({ open, onClose, title, children, className, size = 'md' }
   const sizeClass = size === 'sm' ? 'max-w-md' : size === 'lg' ? 'max-w-3xl' : 'max-w-xl';
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-fade-in">
-      <div className="absolute inset-0 bg-neutral-900/50 backdrop-blur-sm" onClick={onClose} />
-      <div className={cn('relative card w-full max-h-[90vh] overflow-y-auto', sizeClass, className)}>
-        <div className="flex items-center justify-between border-b border-neutral-200 px-5 py-4 sticky top-0 bg-white rounded-t-xl z-10">
-          <h2 className="text-base font-semibold text-neutral-800">{title}</h2>
-          <button onClick={onClose} className="text-neutral-400 hover:text-neutral-600 transition-colors p-1 rounded-lg hover:bg-neutral-100">
+    <div className="fixed inset-0 z-[1800] flex items-end justify-center p-0 animate-fade-in sm:items-center sm:p-4" role="dialog" aria-modal="true" aria-label={title}>
+      <div className="absolute inset-0 bg-ink/55" onClick={onClose} />
+      <div className={cn('relative w-full max-h-[92vh] overflow-y-auto rounded-t-panel border border-line bg-surface shadow-lift sm:rounded-panel', sizeClass, className)}>
+        <div className="flex items-center justify-between sticky top-0 z-10 border-b border-line bg-surface px-5 py-4">
+          <h2 className="font-display text-xl font-semibold">{title}</h2>
+          <button onClick={onClose} className="rounded-control p-2 text-neutral-500 hover:bg-neutral-100 hover:text-ink" aria-label="Close">
             <X size={18} />
           </button>
         </div>
@@ -70,7 +70,7 @@ export function ReasonDialog({
   return (
     <Modal open={open} onClose={close} title={title} size="sm">
       <p className="text-sm text-neutral-600 mb-3">{message}</p>
-      <label className="label">Reason {required ? '' : <span className="text-neutral-400 font-normal">(optional)</span>}</label>
+      <label className="label">Reason {required ? '' : <span className="font-normal text-neutral-500">(optional)</span>}</label>
       <textarea className="input resize-none" rows={3} value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Recorded in the activity history" autoFocus />
       <div className="flex justify-end gap-3 mt-4">
         <button className="btn-secondary" onClick={close}>Cancel</button>

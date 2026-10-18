@@ -1,8 +1,11 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { locate } from '@/lib/geolocation';
+import { Wordmark } from '@/components/brand/Brand';
+import { PriorityGauge } from '@/components/ui/PriorityGauge';
 import {
-  ArrowLeft, CheckCircle2, CircleDot, Crosshair, LifeBuoy,
-  LocateFixed, LogOut, MapPin, Navigation, PackageCheck, Radio, ShieldAlert,
+  CheckCircle2, CircleDot, Crosshair, LifeBuoy,
+  LocateFixed, LogOut, MapPin, Navigation, PackageCheck, ShieldAlert,
   Siren, Users, XCircle,
 } from 'lucide-react';
 import { useAuth } from '@/auth/AuthContext';
@@ -16,7 +19,7 @@ import {
   useResponderRejectAssignment,
   useTeams,
 } from '@/hooks/useData';
-import { AssignmentStatusBadge, PriorityBadge, TriStateBadge } from '@/components/ui/Badges';
+import { AssignmentStatusBadge, TriStateBadge } from '@/components/ui/Badges';
 import { EmptyState, LoadingSpinner } from '@/components/ui/States';
 import { Modal, ReasonDialog } from '@/components/ui/Modal';
 import {
@@ -39,19 +42,10 @@ const REQUIRED_EQUIPMENT: Record<Incident['type'], string[]> = {
   other: ['First-aid kit', 'Rescue tools', 'Protective equipment'],
 };
 
-function browserLocation(): Promise<ResponderLocation | null> {
-  if (!navigator.geolocation) return Promise.resolve(null);
-  return new Promise((resolve) => {
-    navigator.geolocation.getCurrentPosition(
-      (position) => resolve({
-        latitude: position.coords.latitude,
-        longitude: position.coords.longitude,
-        accuracy: Number.isFinite(position.coords.accuracy) ? position.coords.accuracy : null,
-      }),
-      () => resolve(null),
-      { enableHighAccuracy: true, timeout: 10_000, maximumAge: 15_000 },
-    );
-  });
+// A status tap never waits on location: a failed fix still sends the update, just without GPS.
+async function browserLocation(): Promise<ResponderLocation | null> {
+  const result = await locate();
+  return result.ok ? { latitude: result.latitude, longitude: result.longitude, accuracy: result.accuracy } : null;
 }
 
 export function ResponderPage() {
@@ -123,26 +117,24 @@ export function ResponderPage() {
   };
 
   return (
-    <div className="min-h-screen bg-neutral-50">
-      <header className="bg-[#102e2b] text-white">
-        <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-4 sm:px-6">
-          <div className="flex items-center gap-2 font-bold"><Radio size={20} /> ResQNet Responder Web</div>
-          <button className="flex items-center gap-2 text-sm text-slate-200" onClick={() => void auth.signOut()}><LogOut size={15} /> Sign out</button>
+    <div className="min-h-screen bg-paper">
+      <header className="sticky top-0 z-[600] bg-ink text-paper">
+        <div className="mx-auto flex max-w-3xl items-center justify-between px-4 py-3 sm:px-6">
+          <Link to="/portal" aria-label="Workspaces"><Wordmark inverted sub="Field app" /></Link>
+          <button className="btn-ghost btn-sm text-[#C9D6D4] hover:bg-white/10 hover:text-white" onClick={() => void auth.signOut()}><LogOut size={16} aria-hidden="true" />Sign out</button>
         </div>
       </header>
-      <main className="mx-auto max-w-5xl px-4 py-6 sm:px-6 sm:py-8">
-        <Link to="/portal" className="mb-5 flex items-center gap-1 text-sm text-neutral-500"><ArrowLeft size={15} /> Workspaces</Link>
+      <main className="mx-auto max-w-3xl px-4 py-6 sm:px-6 sm:py-8">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-widest text-primary-600">Responder website</p>
-          <h1 className="mt-1 text-2xl font-bold">My team assignments</h1>
-          <p className="mt-1 text-sm text-neutral-500">Signed in as {auth.profile?.full_name}. Status taps request your browser location; continuous tracking is not used.</p>
+          <h1 className="text-4xl font-bold">My jobs</h1>
+          <p className="mt-1 text-neutral-600">Signed in as {auth.profile?.full_name}. Each status tap sends your location once. You are not tracked between taps.</p>
         </div>
 
         <div className="mt-6 space-y-4">
           {((assignments.isLoading || incidents.isLoading || teams.isLoading || resources.isLoading) && navigator.onLine) ? (
             <div className="card card-body grid place-items-center"><LoadingSpinner /></div>
           ) : (assignments.error || incidents.error) && !offlineData ? (
-            <div className="card card-body text-sm text-red-700">Assignments could not be loaded. Refresh the page or check your team membership.</div>
+            <div className="card card-body text-critical">Your jobs could not be loaded. Refresh the page, or ask a coordinator to check your team membership.</div>
           ) : assignmentRows.length ? assignmentRows.map((assignment) => {
             const incident = incidentById.get(assignment.incident_id);
             const team = teamById.get(assignment.team_id);
@@ -151,40 +143,39 @@ export function ResponderPage() {
             const reserved = assignment.resource_ids.map((id) => resourceById.get(id)).filter(Boolean) as Resource[];
             const isActive = assignment.status === 'assigned' || assignment.status === 'dispatched';
             return (
-              <article key={assignment.id} className={`card card-body ${isActive && incident.priority_level === 'critical' ? 'border-red-300' : ''}`}>
+              <article key={assignment.id} className={`card card-body ${isActive && incident.priority_level === 'critical' ? 'border-critical/50 ring-1 ring-critical/20' : ''}`}>
                 <div className="flex flex-wrap justify-between gap-3">
                   <div className="min-w-0 flex-1">
-                    <p className="text-xs text-neutral-400">{team?.team_code} · {team?.name}</p>
-                    <h2 className="mt-1 text-lg font-bold">{INCIDENT_TYPE_LABELS[incident.type]}</h2>
-                    <p className="mt-1 text-sm text-neutral-700">{incident.description}</p>
-                    {incident.area_landmark && <p className="mt-3 flex items-center gap-1 text-sm"><MapPin size={14} /> {incident.area_landmark}</p>}
+                    <p className="text-sm text-neutral-500">{incident.report_code}, {team?.name}</p>
+                    <h2 className="mt-1 text-2xl font-bold">{INCIDENT_TYPE_LABELS[incident.type]}</h2>
+                    <p className="mt-1 text-[15px] text-neutral-700">{incident.description}</p>
+                    {incident.area_landmark && <p className="mt-3 flex items-center gap-1.5 font-semibold"><MapPin size={16} aria-hidden="true" />{incident.area_landmark}</p>}
                   </div>
-                  <div className="flex items-start gap-2"><PriorityBadge level={incident.priority_level} /><AssignmentStatusBadge status={assignment.status} /></div>
+                  <div className="flex flex-col items-end gap-2"><PriorityGauge score={incident.priority_score} level={incident.priority_level} /><AssignmentStatusBadge status={assignment.status} /></div>
                 </div>
 
                 <div className="mt-4 grid gap-3 md:grid-cols-2">
-                  <div className="rounded-lg border border-red-100 bg-red-50 p-3">
-                    <h3 className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-red-800"><ShieldAlert size={14} /> Risks and vulnerable people</h3>
+                  <div className="rounded-control border border-line p-3">
+                    <h3 className="flex items-center gap-2 text-[15px] font-semibold"><ShieldAlert size={16} aria-hidden="true" className="text-critical" />Risks and vulnerable people</h3>
                     <div className="mt-2 flex flex-wrap gap-1.5">
                       <TriStateBadge value={incident.people_trapped} label="Trapped" />
                       <TriStateBadge value={incident.injuries_reported} label="Injuries" />
                       <TriStateBadge value={incident.vulnerable_people} label="Vulnerable" />
                       <TriStateBadge value={incident.danger_increasing} label="Worsening" />
                     </div>
-                    {incident.priority_reasons.length > 0 && <ul className="mt-2 list-disc space-y-1 pl-4 text-xs text-red-900">{incident.priority_reasons.map((reason) => <li key={reason}>{reason}</li>)}</ul>}
+                    {incident.priority_reasons.length > 0 && <ul className="mt-2 list-disc space-y-1 ps-4 text-sm text-neutral-700">{incident.priority_reasons.map((reason) => <li key={reason}>{reason}</li>)}</ul>}
                   </div>
-                  <div className="rounded-lg border border-blue-100 bg-blue-50 p-3">
-                    <h3 className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-blue-800"><PackageCheck size={14} /> Equipment</h3>
-                    <p className="mt-2 text-xs font-medium text-blue-900">Required for this incident</p>
-                    <p className="mt-1 text-xs text-blue-900">{REQUIRED_EQUIPMENT[incident.type].join(' · ')}</p>
-                    <p className="mt-2 text-xs font-medium text-blue-900">Team equipment</p>
-                    <p className="mt-1 text-xs text-blue-900">{team?.equipment.length ? team.equipment.join(' · ') : 'No team equipment recorded'}</p>
-                    <p className="mt-2 text-xs font-medium text-blue-900">Reserved supplies</p>
-                    <p className="mt-1 text-xs text-blue-900">{reserved.length ? reserved.map((item) => item.name).join(' · ') : 'None reserved'}</p>
+                  <div className="rounded-control border border-line p-3">
+                    <h3 className="flex items-center gap-2 text-[15px] font-semibold"><PackageCheck size={16} aria-hidden="true" className="text-primary-600" />Equipment</h3>
+                    <dl className="mt-2 space-y-2 text-sm">
+                      <div><dt className="text-neutral-500">Needed</dt><dd>{REQUIRED_EQUIPMENT[incident.type].join(', ')}</dd></div>
+                      <div><dt className="text-neutral-500">Your team has</dt><dd>{team?.equipment.length ? team.equipment.map((item) => item.replace(/_/g, ' ')).join(', ') : 'Nothing recorded'}</dd></div>
+                      <div><dt className="text-neutral-500">Reserved for this job</dt><dd>{reserved.length ? reserved.map((item) => item.name).join(', ') : 'Nothing reserved'}</dd></div>
+                    </dl>
                   </div>
                 </div>
 
-                <div className="mt-4 flex flex-wrap items-center gap-2 rounded-lg bg-neutral-50 p-3 text-xs text-neutral-600">
+                <div className="mt-4 flex flex-wrap items-center gap-2 rounded-control bg-neutral-100 p-3 text-sm text-neutral-600">
                   <CircleDot size={14} />
                   <strong>{ASSIGNMENT_FIELD_STATUS_LABELS[assignment.field_status ?? (assignment.status === 'assigned' ? 'awaiting_response' : 'en_route')]}</strong>
                   {assignment.last_field_update_at && <span>· updated {timeAgo(assignment.last_field_update_at)}</span>}
@@ -193,16 +184,16 @@ export function ResponderPage() {
                 </div>
 
                 {isActive && (
-                  <div className="mt-5 flex flex-wrap gap-2 border-t pt-4">
+                  <div className="mt-5 grid gap-2 border-t border-line pt-4 sm:grid-cols-2">
                     {assignment.status === 'assigned' && <>
-                      <button className="btn-primary" disabled={busy} onClick={() => void sendAction(assignment, 'accept', 'Assignment accepted; team en route')}><Siren size={16} /> Accept &amp; go en route</button>
-                      <button className="btn-secondary text-red-700" disabled={busy} onClick={() => setRejecting(assignment)}><XCircle size={16} /> Reject</button>
+                      <button className="btn-primary btn-lg w-full" disabled={busy} onClick={() => void sendAction(assignment, 'accept', 'Assignment accepted; team en route')}><Siren size={16} /> Accept &amp; go en route</button>
+                      <button className="btn-secondary btn-lg w-full text-critical" disabled={busy} onClick={() => setRejecting(assignment)}><XCircle size={16} /> Reject</button>
                     </>}
                     {assignment.status === 'dispatched' && <>
-                      {(assignment.field_status === 'en_route' || !assignment.field_status) && <button className="btn-primary" disabled={busy} onClick={() => void sendAction(assignment, 'arrived', 'Arrival recorded')}><LocateFixed size={16} /> Arrived</button>}
-                      {assignment.field_status === 'arrived' && <button className="btn-primary" disabled={busy} onClick={() => void sendAction(assignment, 'victim_reached', 'Victim reached recorded')}><Users size={16} /> Victim reached</button>}
-                      {['arrived', 'victim_reached'].includes(assignment.field_status) && <button className="btn-primary" disabled={busy} onClick={() => setCompletionFor(assignment)}><CheckCircle2 size={16} /> Complete response</button>}
-                      <button className="btn-danger" disabled={busy} onClick={() => setBackupFor(assignment)}><LifeBuoy size={16} /> Needs backup</button>
+                      {(assignment.field_status === 'en_route' || !assignment.field_status) && <button className="btn-primary btn-lg w-full" disabled={busy} onClick={() => void sendAction(assignment, 'arrived', 'Arrival recorded')}><LocateFixed size={16} /> Arrived</button>}
+                      {assignment.field_status === 'arrived' && <button className="btn-primary btn-lg w-full" disabled={busy} onClick={() => void sendAction(assignment, 'victim_reached', 'Victim reached recorded')}><Users size={16} /> Victim reached</button>}
+                      {['arrived', 'victim_reached'].includes(assignment.field_status) && <button className="btn-primary btn-lg w-full" disabled={busy} onClick={() => setCompletionFor(assignment)}><CheckCircle2 size={16} /> Complete response</button>}
+                      <button className="btn-danger btn-lg w-full" disabled={busy} onClick={() => setBackupFor(assignment)}><LifeBuoy size={16} /> Needs backup</button>
                     </>}
                     {locating && <span className="flex items-center gap-2 text-xs text-neutral-500"><Crosshair size={14} className="animate-pulse" /> Getting browser location…</span>}
                   </div>

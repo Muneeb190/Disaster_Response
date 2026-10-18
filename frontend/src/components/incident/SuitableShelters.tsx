@@ -45,7 +45,7 @@ export function SuitableShelters({ position, needVulnerable }: { position: [numb
       ) : (
         <p className="text-xs text-neutral-500">No open shelter with free space{needs.length ? ' and the selected facilities confirmed' : ''}. <Link to="/shelters" className="text-primary-600 underline">Shelter directory</Link></p>
       )}
-      <p className="text-[10px] text-neutral-400 mt-3">Distances are straight-line estimates. A listed shelter is not a guarantee of safety.</p>
+      <p className="text-xs text-neutral-400 mt-3">Distances are straight-line estimates. A listed shelter is not a guarantee of safety.</p>
     </div>
   );
 }
