@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { locate } from '@/lib/geolocation';
 import { Wordmark } from '@/components/brand/Brand';
 import { PriorityGauge } from '@/components/ui/PriorityGauge';
 import {
@@ -41,19 +42,10 @@ const REQUIRED_EQUIPMENT: Record<Incident['type'], string[]> = {
   other: ['First-aid kit', 'Rescue tools', 'Protective equipment'],
 };
 
-function browserLocation(): Promise<ResponderLocation | null> {
-  if (!navigator.geolocation) return Promise.resolve(null);
-  return new Promise((resolve) => {
-    navigator.geolocation.getCurrentPosition(
-      (position) => resolve({
-        latitude: position.coords.latitude,
-        longitude: position.coords.longitude,
-        accuracy: Number.isFinite(position.coords.accuracy) ? position.coords.accuracy : null,
-      }),
-      () => resolve(null),
-      { enableHighAccuracy: true, timeout: 10_000, maximumAge: 15_000 },
-    );
-  });
+// A status tap never waits on location: a failed fix still sends the update, just without GPS.
+async function browserLocation(): Promise<ResponderLocation | null> {
+  const result = await locate();
+  return result.ok ? { latitude: result.latitude, longitude: result.longitude, accuracy: result.accuracy } : null;
 }
 
 export function ResponderPage() {
@@ -126,7 +118,7 @@ export function ResponderPage() {
 
   return (
     <div className="min-h-screen bg-paper">
-      <header className="sticky top-0 z-[600] bg-ink text-white">
+      <header className="sticky top-0 z-[600] bg-ink text-paper">
         <div className="mx-auto flex max-w-3xl items-center justify-between px-4 py-3 sm:px-6">
           <Link to="/portal" aria-label="Workspaces"><Wordmark inverted sub="Field app" /></Link>
           <button className="btn-ghost btn-sm text-[#C9D6D4] hover:bg-white/10 hover:text-white" onClick={() => void auth.signOut()}><LogOut size={16} aria-hidden="true" />Sign out</button>

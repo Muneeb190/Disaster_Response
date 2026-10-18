@@ -101,7 +101,7 @@ export function DashboardPage() {
       <button className="btn-primary btn-sm" onClick={() => navigate('/report')}><Plus size={16} aria-hidden="true" />Log incident</button>
     </>}>
       {criticalUnassigned.length > 0 && (
-        <div className="mb-5 flex flex-wrap items-center gap-3 rounded-panel border border-[#F0C2BC] bg-[#FBE4E1] px-4 py-3 text-critical" role="alert">
+        <div className="mb-5 flex flex-wrap items-center gap-3 rounded-panel border border-critical-line bg-critical-soft px-4 py-3 text-critical" role="alert">
           <TriangleAlert size={20} aria-hidden="true" />
           <strong>{criticalUnassigned.length} critical {criticalUnassigned.length === 1 ? 'incident has' : 'incidents have'} no team yet.</strong>
           <span className="text-ink">Oldest reported {timeAgo(criticalUnassigned.reduce((oldest, i) => (i.created_at < oldest ? i.created_at : oldest), criticalUnassigned[0].created_at))}.</span>

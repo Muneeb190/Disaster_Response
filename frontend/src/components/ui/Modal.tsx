@@ -32,8 +32,8 @@ export function Modal({ open, onClose, title, children, className, size = 'md' }
   return (
     <div className="fixed inset-0 z-[1800] flex items-end justify-center p-0 animate-fade-in sm:items-center sm:p-4" role="dialog" aria-modal="true" aria-label={title}>
       <div className="absolute inset-0 bg-ink/55" onClick={onClose} />
-      <div className={cn('relative w-full max-h-[92vh] overflow-y-auto rounded-t-panel border border-line bg-white shadow-lift sm:rounded-panel', sizeClass, className)}>
-        <div className="flex items-center justify-between sticky top-0 z-10 border-b border-line bg-white px-5 py-4">
+      <div className={cn('relative w-full max-h-[92vh] overflow-y-auto rounded-t-panel border border-line bg-surface shadow-lift sm:rounded-panel', sizeClass, className)}>
+        <div className="flex items-center justify-between sticky top-0 z-10 border-b border-line bg-surface px-5 py-4">
           <h2 className="font-display text-xl font-semibold">{title}</h2>
           <button onClick={onClose} className="rounded-control p-2 text-neutral-500 hover:bg-neutral-100 hover:text-ink" aria-label="Close">
             <X size={18} />

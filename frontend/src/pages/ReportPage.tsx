@@ -254,7 +254,7 @@ export function ReportPage() {
         <main id="main" className="mx-auto max-w-2xl space-y-4 px-4 py-8 sm:px-6">
           <section className="card card-body">
             <div className="flex items-center gap-3">
-              <span className="grid h-11 w-11 place-items-center rounded-full bg-[#E1F0E8] text-success"><Check size={24} aria-hidden="true" /></span>
+              <span className="grid h-11 w-11 place-items-center rounded-full bg-success-soft text-success"><Check size={24} aria-hidden="true" /></span>
               <h1 className="text-3xl font-bold">{t('report.done')}</h1>
             </div>
             <p className="mt-3 text-neutral-600">{t('report.doneBody')}</p>
@@ -273,8 +273,8 @@ export function ReportPage() {
               <Link to="/" className="btn-secondary">{t('report.backHome')}</Link>
             </div>
           </section>
-          {photoResult === 'uploaded' && <p className="rounded-control border border-[#BFDCCB] bg-[#E1F0E8] p-3 text-sm text-success">Your photo was stored privately for response staff.</p>}
-          {photoResult === 'failed' && <p className="rounded-control border border-[#EBD9A6] bg-[#F8EDCF] p-3 text-sm text-moderate">Your report was received, but the photo was not uploaded. You can try again below.</p>}
+          {photoResult === 'uploaded' && <p className="rounded-control border border-success-line bg-success-soft p-3 text-sm text-success">Your photo was stored privately for response staff.</p>}
+          {photoResult === 'failed' && <p className="rounded-control border border-moderate-line bg-moderate-soft p-3 text-sm text-moderate">Your report was received, but the photo was not uploaded. You can try again below.</p>}
           {submittedToken && <EvidenceUploader reportCode={submittedCode} trackingToken={submittedToken} />}
           {submittedToken && <PublicShelterSuggestions reportCode={submittedCode} trackingToken={submittedToken} vulnerable={watch('vulnerable_people') === 'yes' || vulnerabilityFlags.length > 0} />}
           <SafetyGuidance type={submittedType} />
@@ -298,7 +298,7 @@ export function ReportPage() {
             <div className="grid grid-cols-3 gap-2 sm:grid-cols-5" role="group" aria-label={t('report.what')}>
               {incidentTypes.map(({ value, Icon }) => (
                 <button key={value} type="button" aria-pressed={type === value} onClick={() => setValue('type', value)}
-                  className={`flex min-h-[84px] flex-col items-center justify-center gap-1.5 rounded-control border-2 px-2 py-3 text-center text-sm font-semibold transition-colors ${type === value ? 'border-ink bg-ink text-white' : 'border-line bg-white text-ink hover:border-neutral-300'}`}>
+                  className={`flex min-h-[84px] flex-col items-center justify-center gap-1.5 rounded-control border-2 px-2 py-3 text-center text-sm font-semibold transition-colors ${type === value ? 'border-ink bg-ink text-paper' : 'border-line bg-surface text-ink hover:border-neutral-300'}`}>
                   <Icon size={24} aria-hidden="true" />
                   {t(`type.${value}`)}
                 </button>
@@ -361,7 +361,7 @@ export function ReportPage() {
                 {NEEDS.map((need) => {
                   const on = vulnerabilityFlags.includes(need);
                   return (
-                    <label key={need} className={`inline-flex min-h-[40px] cursor-pointer items-center gap-2 rounded-full border px-3.5 text-[15px] has-[:focus-visible]:outline has-[:focus-visible]:outline-[3px] has-[:focus-visible]:outline-primary-600 ${on ? 'border-primary-600 bg-primary-50 font-semibold text-primary-800' : 'border-line bg-white hover:border-neutral-300'}`}>
+                    <label key={need} className={`inline-flex min-h-[40px] cursor-pointer items-center gap-2 rounded-full border px-3.5 text-[15px] has-[:focus-visible]:outline has-[:focus-visible]:outline-[3px] has-[:focus-visible]:outline-primary-600 ${on ? 'border-primary-600 bg-primary-50 font-semibold text-primary-800' : 'border-line bg-surface hover:border-neutral-300'}`}>
                       <input type="checkbox" className="sr-only" checked={on} onChange={(event) => toggleNeed(need, event.target.checked)} />
                       {on && <Check size={15} aria-hidden="true" />}{t(`need.${need}`)}
                     </label>
@@ -415,7 +415,7 @@ export function ReportPage() {
         </form>
       </main>
 
-      <div className="fixed inset-x-0 bottom-0 z-[500] border-t border-line bg-white/95 backdrop-blur">
+      <div className="fixed inset-x-0 bottom-0 z-[500] border-t border-line bg-surface/95 backdrop-blur">
         <div className="mx-auto flex max-w-2xl items-center gap-3 px-4 py-3 sm:px-6">
           <Link to="/" className="btn-ghost hidden sm:inline-flex">{t('nav.home')}</Link>
           <button type="submit" form="report-form" className="btn-danger btn-lg flex-1 text-lg" disabled={createIncident.isPending || voiceUploading}>
@@ -468,7 +468,7 @@ function TriStateField({ label, name, register, watch, setValue }: {
 }) {
   const { t } = useLang();
   const value = watch(name);
-  const selected: Record<TriState, string> = { yes: 'border-critical bg-[#FBE4E1] text-critical', no: 'border-success bg-[#E1F0E8] text-success', unknown: 'border-neutral-500 bg-neutral-100 text-ink' };
+  const selected: Record<TriState, string> = { yes: 'border-critical bg-critical-soft text-critical', no: 'border-success bg-success-soft text-success', unknown: 'border-neutral-500 bg-neutral-100 text-ink' };
   return (
     <fieldset>
       <legend className="label">{label}</legend>

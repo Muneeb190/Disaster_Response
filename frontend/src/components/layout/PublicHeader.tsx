@@ -10,13 +10,13 @@ export function PublicHeader() {
   return (
     <>
       <a href="#main" className="skip-link">Skip to content</a>
-      <div className="bg-ink text-white">
+      <div className="bg-ink text-paper">
         <p className="mx-auto flex max-w-5xl items-center gap-2 px-4 py-2 text-sm sm:px-6">
           <Phone size={15} aria-hidden="true" className="shrink-0 text-flood" />
           {t('call.banner')}
         </p>
       </div>
-      <header className="border-b border-line bg-white">
+      <header className="border-b border-line bg-surface">
         <div className="mx-auto flex max-w-5xl items-center justify-between gap-3 px-4 py-3 sm:px-6">
           <Link to="/" aria-label="ResQNet home"><Wordmark sub={t('brand.place')} /></Link>
           <nav className="flex items-center gap-1 sm:gap-2" aria-label="Main">

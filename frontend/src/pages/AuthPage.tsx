@@ -76,7 +76,7 @@ export function AuthPage({ mode }: { mode: 'login' | 'signup' }) {
         </p>
       </div>
 
-      {error && <div className="flex gap-2 mb-4 rounded-control border border-[#F0C2BC] bg-[#FBE4E1] p-3 text-sm text-critical"><AlertCircle size={18} className="shrink-0" />{error}</div>}
+      {error && <div className="flex gap-2 mb-4 rounded-control border border-critical-line bg-critical-soft p-3 text-sm text-critical"><AlertCircle size={18} className="shrink-0" />{error}</div>}
 
       <form className="space-y-4" onSubmit={submit}>
         {mode === 'signup' && (
@@ -141,7 +141,7 @@ function AuthShell({ children }: { children: React.ReactNode }) {
       <div className="grid place-items-center p-6">
         <div className="w-full max-w-sm">
           <Link to="/" className="mb-8 block lg:hidden" aria-label="ResQNet home"><Wordmark sub="Islamabad disaster response" /></Link>
-          {supabaseConfigurationError && <div className="mb-4 flex gap-2 rounded-control border border-[#F0C2BC] bg-[#FBE4E1] p-3 text-sm text-critical"><AlertCircle size={18} className="shrink-0" aria-hidden="true" />{supabaseConfigurationError}</div>}
+          {supabaseConfigurationError && <div className="mb-4 flex gap-2 rounded-control border border-critical-line bg-critical-soft p-3 text-sm text-critical"><AlertCircle size={18} className="shrink-0" aria-hidden="true" />{supabaseConfigurationError}</div>}
           {children}
         </div>
       </div>

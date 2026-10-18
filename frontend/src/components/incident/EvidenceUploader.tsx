@@ -28,7 +28,7 @@ export function EvidenceUploader({ reportCode, trackingToken }: { reportCode: st
   };
 
   return (
-    <section className="rounded-xl border border-neutral-200 bg-white p-4 text-left">
+    <section className="rounded-xl border border-neutral-200 bg-surface p-4 text-left">
       <h3 className="flex items-center gap-2 text-sm font-semibold text-neutral-800"><Camera size={16} /> Add private photo evidence</h3>
       <p className="mt-1 text-xs text-neutral-500">Optional. Photos are compressed, stored privately, and visible only to assigned responders and coordinators. Maximum three photos per report.</p>
       <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center">

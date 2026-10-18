@@ -8,6 +8,7 @@ import type { DangerZone, Incident, RescueTeam, Resource, Shelter, TeamStatus } 
 import { PriorityBadge } from '@/components/ui/Badges';
 import { INCIDENT_TYPE_LABELS, STATUS_LABELS, TEAM_MARKER_COLORS, TEAM_STATUS_LABELS } from '@/types';
 import { timeAgo } from '@/lib/utils';
+import { locate, LOCATE_HELP, type LocateFailure } from '@/lib/geolocation';
 
 // Custom div-icon factory for colored markers
 function makeIcon(color: string, iconClass: string = '') {
@@ -183,16 +184,14 @@ export function IncidentMap({ incidents = [], teams = [], resources = [], shelte
 export function LocationPicker({ onPick, initialPos, center: viewCenter }: { onPick: (lat: number, lng: number) => void; initialPos?: [number, number]; center?: [number, number] }) {
   const center = initialPos || viewCenter || ISLAMABAD;
   const [locateRequest, setLocateRequest] = useState(1);
-  const [locationStatus, setLocationStatus] = useState<'locating' | 'found' | 'unavailable'>('locating');
+  const [locationStatus, setLocationStatus] = useState<LocationStatus>(initialPos ? 'found' : 'locating');
   return (
     <div>
-      <div className="mb-2 flex flex-wrap items-center justify-between gap-2 text-xs">
-        <span role="status" aria-live="polite" className={locationStatus === 'found' ? 'text-green-700' : locationStatus === 'unavailable' ? 'text-amber-700' : 'text-neutral-600'}>
-          {locationStatus === 'locating' && 'Requesting your device location…'}
-          {locationStatus === 'found' && 'Device location detected. You can move the pin by tapping the map.'}
-          {locationStatus === 'unavailable' && 'Automatic location was unavailable. Tap the map to place the pin manually.'}
+      <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+        <span role="status" aria-live="polite" className={`text-sm ${locationStatus === 'found' ? 'text-success' : locationStatus === 'locating' ? 'text-neutral-600' : 'text-moderate'}`}>
+          {locationStatus === 'locating' ? 'Finding your location… allow it if your browser asks.' : locationStatus === 'found' ? 'Location found. Drag the pin or tap the map to correct it.' : LOCATE_HELP[locationStatus]}
         </span>
-        <button type="button" className="btn-secondary btn-sm" onClick={() => { setLocationStatus('locating'); setLocateRequest((value) => value + 1); }}>
+        <button type="button" className="btn-secondary btn-sm" disabled={locationStatus === 'locating'} onClick={() => { setLocationStatus('locating'); setLocateRequest((value) => value + 1); }}>
           Use my location
         </button>
       </div>
@@ -209,7 +208,9 @@ export function LocationPicker({ onPick, initialPos, center: viewCenter }: { onP
   );
 }
 
-function LocationClickHandler({ onPick, initialPos, locateRequest, onLocationStatus }: { onPick: (lat: number, lng: number) => void; initialPos?: [number, number]; locateRequest: number; onLocationStatus: (status: 'locating' | 'found' | 'unavailable') => void }) {
+type LocationStatus = 'locating' | 'found' | LocateFailure;
+
+function LocationClickHandler({ onPick, initialPos, locateRequest, onLocationStatus }: { onPick: (lat: number, lng: number) => void; initialPos?: [number, number]; locateRequest: number; onLocationStatus: (status: LocationStatus) => void }) {
   const map = useMap();
   const markerRef = useRef<L.Marker | null>(null);
   const onPickRef = useRef(onPick);
@@ -245,20 +246,14 @@ function LocationClickHandler({ onPick, initialPos, locateRequest, onLocationSta
   }, [map, initialPos, placeMarker]);
 
   useEffect(() => {
-    if (initialPos || !navigator.geolocation) {
-      if (!initialPos) onLocationStatus('unavailable');
-      return;
-    }
+    // A preset position only skips the automatic lookup; "Use my location" (locateRequest > 1) still works.
+    if (initialPos && locateRequest === 1) return;
     let active = true;
-    navigator.geolocation.getCurrentPosition(
-      ({ coords }) => {
-        if (!active) return;
-        placeMarker(coords.latitude, coords.longitude, true);
-        onLocationStatus('found');
-      },
-      () => { if (active) onLocationStatus('unavailable'); },
-      { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 },
-    );
+    void locate().then((result) => {
+      if (!active) return;
+      if (result.ok) { placeMarker(result.latitude, result.longitude, true); onLocationStatus('found'); }
+      else onLocationStatus(result.reason);
+    });
     return () => { active = false; };
   }, [locateRequest, initialPos, map, onLocationStatus, placeMarker]);
 

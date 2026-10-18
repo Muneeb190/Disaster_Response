@@ -18,7 +18,7 @@ export function HomePage() {
             <h1 className="font-display text-[40px] font-bold leading-[1.05] sm:text-[56px]">{t('home.title')}</h1>
             <p className="mt-4 max-w-[34em] text-lg text-neutral-600">{t('home.lead')}</p>
 
-            <Link to="/report" className="group mt-8 flex items-center gap-4 rounded-panel bg-critical px-5 py-5 text-white transition-colors hover:bg-[#A81F16] sm:px-6">
+            <Link to="/report" className="group mt-8 flex items-center gap-4 rounded-panel bg-danger px-5 py-5 text-white transition-colors hover:bg-[#B91C1C] sm:px-6">
               <Siren size={30} aria-hidden="true" className="shrink-0" />
               <span>
                 <span className="block font-display text-2xl font-bold">{t('home.report')}</span>
@@ -26,7 +26,7 @@ export function HomePage() {
               </span>
             </Link>
 
-            <div className="mt-3 divide-y divide-line overflow-hidden rounded-panel border border-line bg-white">
+            <div className="mt-3 divide-y divide-line overflow-hidden rounded-panel border border-line bg-surface">
               <Link to="/status" className="flex items-start gap-4 px-5 py-4 hover:bg-neutral-50">
                 <Search size={22} aria-hidden="true" className="mt-0.5 shrink-0 text-primary-600" />
                 <span><span className="block font-semibold">{t('home.track')}</span><span className="block text-[15px] text-neutral-500">{t('home.trackHint')}</span></span>
@@ -39,7 +39,7 @@ export function HomePage() {
           </section>
 
           <aside className="space-y-4">
-            <section className={warnings.length ? 'rounded-panel border border-[#F2C9A8] bg-[#FDF1E7] p-5' : 'rounded-panel border border-line bg-white p-5'} aria-live="polite">
+            <section className={warnings.length ? 'rounded-panel border border-high-line bg-high-soft p-5' : 'rounded-panel border border-line bg-surface p-5'} aria-live="polite">
               <h2 className="flex items-center gap-2 text-lg font-semibold"><CloudRain size={20} aria-hidden="true" className={warnings.length ? 'text-high' : 'text-primary-600'} />{t('home.warning')}</h2>
               {weather.isLoading && <p className="mt-2 text-neutral-500">…</p>}
               {!weather.isLoading && !warnings.length && <p className="mt-2 text-neutral-600">{weather.error ? t('home.forecastDown') : t('home.noWarning')}</p>}
@@ -64,7 +64,7 @@ export function HomePage() {
           <h2 className="text-2xl font-semibold">{t('home.after')}</h2>
           <ol className="mt-5 grid gap-px overflow-hidden rounded-panel border border-line bg-line sm:grid-cols-3">
             {(['home.step1', 'home.step2', 'home.step3'] as const).map((key, index) => (
-              <li key={key} className="bg-white p-5">
+              <li key={key} className="bg-surface p-5">
                 <span className="font-display text-3xl font-bold text-primary-600">{index + 1}</span>
                 <p className="mt-2 text-[15px] text-neutral-700">{t(key)}</p>
               </li>

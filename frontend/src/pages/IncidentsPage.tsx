@@ -129,7 +129,7 @@ export function IncidentsPage() {
 
       {urgentLane.length > 0 && (
         <div className="card mb-4 overflow-hidden border-critical/40">
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-[#F0C2BC] bg-[#FBE4E1] px-5 py-3">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-critical-line bg-critical-soft px-5 py-3">
             <span className="flex items-center gap-2 font-display text-lg font-semibold text-critical"><ShieldAlert size={18} aria-hidden="true" />Check these first ({urgentLane.length})</span>
             <span className="text-sm text-ink">Serious but uncertain. Always shown, whatever the filters.</span>
           </div>

@@ -40,7 +40,7 @@ export function AtRiskRegisterPage() {
 
         {reference ? (
           <section className="card card-body mt-6">
-            <div className="flex items-center gap-3"><span className="grid h-11 w-11 place-items-center rounded-full bg-[#E1F0E8] text-success"><Check size={24} aria-hidden="true" /></span><h2 className="text-2xl font-bold">{t('reg.done')}</h2></div>
+            <div className="flex items-center gap-3"><span className="grid h-11 w-11 place-items-center rounded-full bg-success-soft text-success"><Check size={24} aria-hidden="true" /></span><h2 className="text-2xl font-bold">{t('reg.done')}</h2></div>
             <p className="mt-3 text-neutral-600">{t('reg.doneBody')}</p>
             <p className="mt-4 flex items-center justify-between gap-2 rounded-control border border-line p-4" lang="en"><span className="font-display text-2xl font-bold">{reference}</span><button type="button" className="btn-ghost btn-sm" onClick={() => { void navigator.clipboard.writeText(reference); toast('Reference copied', 'success'); }}><Copy size={16} aria-hidden="true" />{t('report.copy')}</button></p>
           </section>
@@ -58,7 +58,7 @@ export function AtRiskRegisterPage() {
                   {NEEDS.map((need) => {
                     const on = needs.includes(need);
                     return (
-                      <label key={need} className={`inline-flex min-h-[40px] cursor-pointer items-center gap-2 rounded-full border px-3.5 text-[15px] has-[:focus-visible]:outline has-[:focus-visible]:outline-[3px] has-[:focus-visible]:outline-primary-600 ${on ? 'border-primary-600 bg-primary-50 font-semibold text-primary-800' : 'border-line bg-white hover:border-neutral-300'}`}>
+                      <label key={need} className={`inline-flex min-h-[40px] cursor-pointer items-center gap-2 rounded-full border px-3.5 text-[15px] has-[:focus-visible]:outline has-[:focus-visible]:outline-[3px] has-[:focus-visible]:outline-primary-600 ${on ? 'border-primary-600 bg-primary-50 font-semibold text-primary-800' : 'border-line bg-surface hover:border-neutral-300'}`}>
                         <input type="checkbox" className="sr-only" checked={on} onChange={(e) => setNeeds((current) => e.target.checked ? [...current, need] : current.filter((item) => item !== need))} />
                         {on && <Check size={15} aria-hidden="true" />}{t(`need.${need}`)}
                       </label>

@@ -531,7 +531,7 @@ export const ALERT_TYPE_LABELS: Record<string, string> = {
 
 export const TEAM_MARKER_COLORS: Record<TeamStatus, string> = {
   available: '#0B6E66',
-  assigned: '#10262C',
+  assigned: '#8B5CF6',
   en_route: '#1C9AA6',
   unavailable: '#7A8B8A',
   offline: '#A9B7B5',

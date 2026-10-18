@@ -28,13 +28,13 @@ export function SafetyCheckinPage() {
 
         <div className="mt-8" aria-live="polite">
           {!token ? (
-            <p className="rounded-panel border border-[#F0C2BC] bg-[#FBE4E1] p-5 text-critical">{t('checkin.missing')}</p>
+            <p className="rounded-panel border border-critical-line bg-critical-soft p-5 text-critical">{t('checkin.missing')}</p>
           ) : state === 'safe' ? (
-            <p className="rounded-panel border border-[#BFDCCB] bg-[#E1F0E8] p-5 text-lg text-success">{t('checkin.savedSafe')}</p>
+            <p className="rounded-panel border border-success-line bg-success-soft p-5 text-lg text-success">{t('checkin.savedSafe')}</p>
           ) : state === 'needs_help' ? (
-            <p className="rounded-panel border border-[#F0C2BC] bg-[#FBE4E1] p-5 text-lg text-critical">{t('checkin.savedHelp')}</p>
+            <p className="rounded-panel border border-critical-line bg-critical-soft p-5 text-lg text-critical">{t('checkin.savedHelp')}</p>
           ) : state === 'error' ? (
-            <div className="rounded-panel border border-line bg-white p-5">
+            <div className="rounded-panel border border-line bg-surface p-5">
               <p className="text-neutral-700">{t('checkin.invalid')}</p>
               <Link to="/report" className="btn-danger mt-4">{t('checkin.reportInstead')}</Link>
             </div>
@@ -44,7 +44,7 @@ export function SafetyCheckinPage() {
                 <ShieldCheck size={32} aria-hidden="true" className="shrink-0" />
                 <span className="font-display text-2xl font-bold">{t('checkin.safe')}</span>
               </button>
-              <button className="flex min-h-[84px] items-center gap-4 rounded-panel bg-critical px-6 py-4 text-start text-white transition-colors hover:bg-[#A81F16] disabled:opacity-60" disabled={state === 'saving'} onClick={() => void respond('needs_help')}>
+              <button className="flex min-h-[84px] items-center gap-4 rounded-panel bg-danger px-6 py-4 text-start text-white transition-colors hover:bg-[#B91C1C] disabled:opacity-60" disabled={state === 'saving'} onClick={() => void respond('needs_help')}>
                 <LifeBuoy size={32} aria-hidden="true" className="shrink-0" />
                 <span>
                   <span className="block font-display text-2xl font-bold">{t('checkin.help')}</span>

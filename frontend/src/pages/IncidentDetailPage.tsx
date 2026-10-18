@@ -184,7 +184,7 @@ export function IncidentDetailPage() {
             </div>
 
             {inc.life_threatening && (
-              <div className="mb-3 flex items-center gap-2 rounded-control border border-[#F0C2BC] bg-[#FBE4E1] p-3 text-[15px] text-critical">
+              <div className="mb-3 flex items-center gap-2 rounded-control border border-critical-line bg-critical-soft p-3 text-[15px] text-critical">
                 <AlertTriangle size={18} aria-hidden="true" className="shrink-0" />
                 Danger to life was reported. Review this one yourself before anything else.
               </div>
