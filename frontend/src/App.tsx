@@ -22,6 +22,10 @@ import { SheltersPage } from '@/pages/SheltersPage';
 import { AlertsPage } from '@/pages/AlertsPage';
 import { ActivityPage } from '@/pages/ActivityPage';
 import { SituationReportPage } from '@/pages/SituationReportPage';
+import { AtRiskRegisterPage } from '@/pages/AtRiskRegisterPage';
+import { SafetyCheckinPage } from '@/pages/SafetyCheckinPage';
+import { VulnerabilityPage } from '@/pages/VulnerabilityPage';
+import { PlanningPage } from '@/pages/PlanningPage';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -43,6 +47,8 @@ export default function App() {
             <Route path="/" element={<HomePage />} />
             <Route path="/report" element={<ReportPage />} />
             <Route path="/status" element={<ReportStatusPage />} />
+            <Route path="/register-at-risk" element={<AtRiskRegisterPage />} />
+            <Route path="/check-in" element={<SafetyCheckinPage />} />
             <Route path="/dashboard" element={<RoleRoute allowed={['admin']}><DashboardPage /></RoleRoute>} />
             <Route path="/incidents" element={<RoleRoute allowed={['admin']}><IncidentsPage /></RoleRoute>} />
             <Route path="/incidents/:id" element={<RoleRoute allowed={['admin']}><IncidentDetailPage /></RoleRoute>} />
@@ -53,6 +59,8 @@ export default function App() {
             <Route path="/alerts" element={<RoleRoute allowed={['admin']}><AlertsPage /></RoleRoute>} />
             <Route path="/activity" element={<RoleRoute allowed={['admin']}><ActivityPage /></RoleRoute>} />
             <Route path="/reports/summary" element={<RoleRoute allowed={['admin']}><SituationReportPage /></RoleRoute>} />
+            <Route path="/vulnerability" element={<RoleRoute allowed={['admin']}><VulnerabilityPage /></RoleRoute>} />
+            <Route path="/planning" element={<RoleRoute allowed={['admin']}><PlanningPage /></RoleRoute>} />
             <Route path="/login" element={<AuthPage mode="login" />} />
             <Route path="/signup" element={<AuthPage mode="signup" />} />
             <Route path="/forgot-password" element={<PasswordRecoveryPage />} />

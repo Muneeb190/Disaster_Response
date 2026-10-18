@@ -4,10 +4,14 @@ import { IncidentMap } from '@/components/map/IncidentMap';
 import { LoadingSpinner } from '@/components/ui/States';
 import { useDangerZones } from '@/hooks/useData';
 import { parseLocation, type Incident } from '@/types';
+import { useQuery } from '@tanstack/react-query';
+import { supabase } from '@/lib/supabase';
+import type { RoadClosure } from '@/types';
 
 export function EvacuationRoutePanel({ incident }: { incident: Incident }) {
   const start = parseLocation(incident.location);
   const zones = useDangerZones();
+  const closures = useQuery({ queryKey: ['road-closures'], queryFn: async () => { const { data, error } = await supabase.rpc('list_active_road_closures'); if (error) throw error; return data as RoadClosure[]; } });
   const [lat, setLat] = useState('33.6938');
   const [lng, setLng] = useState('73.0652');
   const [profile, setProfile] = useState('driving-car');
@@ -20,8 +24,8 @@ export function EvacuationRoutePanel({ incident }: { incident: Incident }) {
     if (!start) return;
     setLoading(true); setError(''); setRoute([]); setSummary(null);
     try {
-      const polygons = (zones.data ?? []).map((z) => z.geojson).filter((g) => g.type === 'Polygon').flatMap((g) => g.coordinates as number[][][]);
-      const avoid = polygons.length ? { type: 'MultiPolygon', coordinates: polygons.map((p) => [p]) } : undefined;
+      const polygons = [...(zones.data ?? []).map((z) => z.geojson), ...(closures.data ?? []).map((z) => z.geojson)].filter((g) => g.type === 'Polygon').map((g) => g.coordinates as number[][][]);
+      const avoid = polygons.length ? { type: 'MultiPolygon', coordinates: polygons } : undefined;
       const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/evacuation-route`, {
         method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}` },
         body: JSON.stringify({ start: [start[1], start[0]], end: [Number(lng), Number(lat)], profile, avoid_polygons: avoid }),

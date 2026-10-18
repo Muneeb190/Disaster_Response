@@ -70,6 +70,42 @@ export interface Incident {
   corroboration_count: number;
   corroboration_bonus: number;
   enriched_from_report_ids: string[];
+  is_proxy_report: boolean;
+  proxy_relationship: string | null;
+  vulnerability_flags: string[];
+  incident_origin: 'public_report' | 'proactive_check';
+  area_id: string | null;
+  area_vulnerability_index: number | null;
+  hazard_risk_adjustment: number;
+}
+
+export interface VulnerabilityArea {
+  id: string; name: string; population: number; vulnerability_index: number;
+  low_lying: boolean; is_demo: boolean;
+  boundary: { type: 'Polygon'; coordinates: number[][][] };
+}
+
+export interface AtRiskResident {
+  id: string; reference_code: string; full_name: string; phone: string;
+  preferred_language: string; needs: string[]; area_id: string | null; active: boolean; created_at: string; location: string;
+}
+
+export interface SafetyCheckin {
+  id: string; status: 'pending' | 'safe' | 'needs_help' | 'no_response';
+  delivery_status: string; expires_at: string; created_at: string;
+  at_risk_residents?: { full_name: string; reference_code: string };
+  hazard_events?: { title: string; is_simulation: boolean };
+}
+
+export interface RoadClosure {
+  id: string; name: string; reason: string; geojson: { type: 'Polygon'; coordinates: number[][][] };
+  source: string; trust_level: 'reported' | 'probable' | 'confirmed'; expires_at: string | null;
+}
+
+export interface DispatchPlan {
+  id: string; status: 'draft' | 'approved' | 'superseded'; trigger_reason: string;
+  plan: Array<{ incident_id: string; report_code: string; priority: PriorityLevel; score: number; team_id: string | null; team_name: string | null; straight_line_km: number | null; reason: string | null; gap: string | null }>;
+  created_at: string; approved_at: string | null;
 }
 
 export interface DuplicateCandidate {
@@ -125,6 +161,7 @@ export interface VoiceTranscription {
   danger_increasing: TriState;
   injury_details: string | null;
   immediate_needs: string[];
+  vulnerability_flags: string[];
   uncertainties: string[];
   source: 'gemini';
   model: string;
@@ -364,6 +401,12 @@ export interface TeamRecommendation {
   capability_match: number;
   recommendation_reason: string;
   current_status: TeamStatus;
+  required_capabilities: string[];
+  equipment: string[];
+  missing_equipment: string[];
+  capacity: number;
+  capacity_gap: number;
+  eligible: boolean;
 }
 
 export interface RecalculateResult {

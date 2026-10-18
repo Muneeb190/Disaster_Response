@@ -51,6 +51,9 @@ export function HomePage() {
             <Search size={20} />
             Check Report Status
           </Link>
+          <Link to="/register-at-risk" className="btn-secondary btn-lg">
+            Join At-Risk Register
+          </Link>
         </div>
 
         {/* Feature cards */}

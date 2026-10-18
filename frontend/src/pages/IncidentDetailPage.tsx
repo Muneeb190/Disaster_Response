@@ -26,6 +26,7 @@ import { EvacuationRoutePanel } from '@/components/incident/EvacuationRoutePanel
 import { IncidentEvidencePanel } from '@/components/incident/IncidentEvidencePanel';
 import { FieldResponsePanel } from '@/components/incident/FieldResponsePanel';
 import { ASSIGNMENT_FIELD_STATUS_LABELS } from '@/types';
+import { TeamEtaPanel } from '@/components/incident/TeamEtaPanel';
 
 const errorMessage = (err: unknown, fallback: string) => (err instanceof Error ? err.message : fallback);
 
@@ -352,8 +353,11 @@ export function IncidentDetailPage() {
                           <span className="text-xs text-neutral-500">{rec.distance_km} km</span>
                         </div>
                         <p className="text-[10px] text-neutral-500">{rec.recommendation_reason}</p>
+                        {rec.missing_equipment.length > 0 && <p className="text-[10px] font-medium text-red-600 mt-1">Missing equipment: {rec.missing_equipment.join(', ')}</p>}
+                        {rec.capacity_gap > 0 && <p className="text-[10px] font-medium text-amber-700">Capacity shortfall: {rec.capacity_gap} people</p>}
                       </div>
                     ))}
+                    <TeamEtaPanel incident={inc} teams={teams.data ?? []} recommendations={recommendations.data} />
                   </div>
                 ) : (
                   <p className="text-xs text-neutral-400">No available teams with matching capabilities.</p>
@@ -434,7 +438,8 @@ export function IncidentDetailPage() {
                   return (
                     <button
                       key={rec.team_id}
-                      className={`w-full text-left p-3 rounded-lg border-2 transition-all ${selectedTeam === rec.team_id ? 'border-primary-500 bg-primary-50' : 'border-neutral-200 hover:border-neutral-300'}`}
+                      disabled={!rec.eligible}
+                      className={`w-full text-left p-3 rounded-lg border-2 transition-all disabled:opacity-55 disabled:cursor-not-allowed ${selectedTeam === rec.team_id ? 'border-primary-500 bg-primary-50' : 'border-neutral-200 hover:border-neutral-300'}`}
                       onClick={() => setSelectedTeam(rec.team_id)}
                     >
                       <div className="flex items-center justify-between mb-1">
@@ -445,6 +450,8 @@ export function IncidentDetailPage() {
                         </div>
                       </div>
                       <p className="text-xs text-neutral-500">{rec.recommendation_reason}</p>
+                      {rec.missing_equipment.length > 0 && <p className="text-xs text-red-600">Missing: {rec.missing_equipment.join(', ')}</p>}
+                      {rec.capacity_gap > 0 && <p className="text-xs text-amber-700">Capacity shortfall: {rec.capacity_gap}</p>}
                     </button>
                   );
                 })

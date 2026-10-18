@@ -66,6 +66,9 @@ export function ReportPage() {
   const [voiceRecordingId, setVoiceRecordingId] = useState<string | null>(null);
   const [voiceUploading, setVoiceUploading] = useState(false);
   const [moreDetails, setMoreDetails] = useState(false);
+  const [proxyReport, setProxyReport] = useState(false);
+  const [proxyRelationship, setProxyRelationship] = useState('');
+  const [vulnerabilityFlags, setVulnerabilityFlags] = useState<string[]>([]);
 
   const {
     register,
@@ -107,6 +110,7 @@ export function ReportPage() {
       if (result[field] !== 'unknown') setValue(field, result[field]);
     }
     setAiResults(result as unknown as Record<string, unknown>);
+    if (result.vulnerability_flags?.length) setVulnerabilityFlags(result.vulnerability_flags);
   };
 
   const handleVoiceTranscript = (transcript: string, analysis?: VoiceTranscription | null) => {
@@ -210,6 +214,9 @@ export function ReportPage() {
         transcript_language: voiceResult?.language ?? null,
         transcript_english: voiceResult ? (voiceResult.english_translation || voiceResult.transcript) : null,
         voice_recording_id: voiceRecordingId,
+        is_proxy_report: proxyReport,
+        proxy_relationship: proxyRelationship,
+        vulnerability_flags: vulnerabilityFlags,
       });
       setSubmittedType(data.type);
       if (photo) {
@@ -478,6 +485,24 @@ export function ReportPage() {
               <input {...register('reporter_phone')} className="input" placeholder="Phone number" />
             </div>
             <p className="text-xs text-neutral-400 mt-2">Your contact information is protected and only visible to coordinators.</p>
+            <label className="mt-4 flex items-center gap-2 text-sm text-neutral-700">
+              <input type="checkbox" checked={proxyReport} onChange={(event) => setProxyReport(event.target.checked)} />
+              I am reporting for someone else
+            </label>
+            {proxyReport && <input className="input mt-2" value={proxyRelationship} onChange={(event) => setProxyRelationship(event.target.value)} placeholder="Your relationship to them (optional)" />}
+            <div className="mt-4">
+              <p className="label">Extra support needed <span className="font-normal text-neutral-400">(select any)</span></p>
+              <div className="flex flex-wrap gap-2">
+                {[
+                  ['elderly', 'Older person'], ['child', 'Child'], ['disabled', 'Disabled'], ['pregnant', 'Pregnant'], ['cannot_walk', 'Cannot walk'],
+                  ['chronic_condition', 'Chronic illness'], ['needs_medicine', 'Needs medicine'], ['oxygen_dependency', 'Uses oxygen'],
+                  ['dialysis', 'Needs dialysis'], ['lives_alone', 'Lives alone'], ['no_phone', 'No phone'],
+                  ['power_dependency', 'Needs electricity'], ['limited_transport', 'No transport'],
+                ].map(([value, label]) => <label key={value} className="rounded-full border border-neutral-200 px-3 py-1.5 text-xs">
+                  <input type="checkbox" className="mr-1.5" checked={vulnerabilityFlags.includes(value)} onChange={(event) => setVulnerabilityFlags((current) => event.target.checked ? [...current, value] : current.filter((item) => item !== value))} />{label}
+                </label>)}
+              </div>
+            </div>
           </div>
           </>}
 

@@ -49,6 +49,9 @@ export interface CreateIncidentInput {
   voice_transcript?: string | null;
   transcript_language?: import('@/types').TranscriptLanguage | null;
   transcript_english?: string | null;
+  is_proxy_report?: boolean;
+  proxy_relationship?: string;
+  vulnerability_flags?: string[];
 }
 
 export interface CreateIncidentResult {
@@ -224,7 +227,7 @@ export function useCreateIncident() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (input: CreateIncidentInput) => {
-      const { data, error } = await supabase.rpc('submit_public_incident', {
+      const { data, error } = await supabase.rpc('submit_public_incident_v2', {
         p_type: input.type,
         p_description: input.description,
         p_area_landmark: input.area_landmark || null,
@@ -247,6 +250,9 @@ export function useCreateIncident() {
         p_voice_transcript: input.voice_transcript ?? null,
         p_transcript_language: input.transcript_language ?? null,
         p_transcript_english: input.transcript_english ?? null,
+        p_is_proxy_report: input.is_proxy_report ?? false,
+        p_proxy_relationship: input.proxy_relationship || null,
+        p_vulnerability_flags: input.vulnerability_flags ?? [],
       });
       if (error) throw error;
       return data as CreateIncidentResult;
@@ -502,8 +508,8 @@ export function useUpdateResource() {
 export function useAdjustResource() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async ({ id, delta, reason }: { id: string; delta: number; reason: string }) => {
-      const { data, error } = await supabase.rpc('admin_adjust_resource', { p_resource_id: id, p_delta: delta, p_reason: reason });
+    mutationFn: async ({ id, delta, reason, source, destination }: { id: string; delta: number; reason: string; source?: string; destination?: string }) => {
+      const { data, error } = await supabase.rpc('admin_adjust_resource_v2', { p_resource_id: id, p_delta: delta, p_reason: reason, p_source: source || null, p_destination: destination || null });
       if (error) throw error;
       return data as Resource;
     },
@@ -853,7 +859,7 @@ export function useTeamRecommendations(incidentId: string) {
   return useQuery({
     queryKey: ['recommendations', incidentId],
     queryFn: async () => {
-      const { data, error } = await supabase.rpc('recommend_teams', { p_incident_id: incidentId });
+      const { data, error } = await supabase.rpc('recommend_teams_v2', { p_incident_id: incidentId });
       if (error) throw error;
       return data as unknown as TeamRecommendation[];
     },
