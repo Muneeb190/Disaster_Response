@@ -57,6 +57,15 @@ export function useRealtimeSync(): RealtimeStatus {
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'incident_events' }, () => {
         qc.invalidateQueries({ queryKey: ['incident-events'] });
       })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'backup_requests' }, () => {
+        qc.invalidateQueries({ queryKey: ['backup-requests'] });
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'rescue_completion_reports' }, () => {
+        qc.invalidateQueries({ queryKey: ['completion-reports'] });
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'incident_evidence' }, () => {
+        qc.invalidateQueries({ queryKey: ['incident-evidence'] });
+      })
       .subscribe((state) => {
         if (!active) return;
         setStatus(state === 'SUBSCRIBED' ? 'live' : state === 'CLOSED' || state === 'CHANNEL_ERROR' || state === 'TIMED_OUT' ? 'offline' : 'connecting');

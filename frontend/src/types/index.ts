@@ -5,6 +5,7 @@ export type IncidentStatus = 'reported' | 'verified' | 'assigned' | 'dispatched'
 export type VerificationStatus = 'pending' | 'verified' | 'disputed' | 'flagged';
 export type TeamStatus = 'available' | 'assigned' | 'en_route' | 'unavailable' | 'offline';
 export type AssignmentStatus = 'assigned' | 'dispatched' | 'completed' | 'cancelled';
+export type AssignmentFieldStatus = 'awaiting_response' | 'en_route' | 'arrived' | 'victim_reached' | 'completed' | 'rejected';
 
 export interface Incident {
   id: string;
@@ -69,6 +70,42 @@ export interface Incident {
   corroboration_count: number;
   corroboration_bonus: number;
   enriched_from_report_ids: string[];
+  is_proxy_report: boolean;
+  proxy_relationship: string | null;
+  vulnerability_flags: string[];
+  incident_origin: 'public_report' | 'proactive_check';
+  area_id: string | null;
+  area_vulnerability_index: number | null;
+  hazard_risk_adjustment: number;
+}
+
+export interface VulnerabilityArea {
+  id: string; name: string; population: number; vulnerability_index: number;
+  low_lying: boolean; is_demo: boolean;
+  boundary: { type: 'Polygon'; coordinates: number[][][] };
+}
+
+export interface AtRiskResident {
+  id: string; reference_code: string; full_name: string; phone: string;
+  preferred_language: string; needs: string[]; area_id: string | null; active: boolean; created_at: string; location: string;
+}
+
+export interface SafetyCheckin {
+  id: string; status: 'pending' | 'safe' | 'needs_help' | 'no_response';
+  delivery_status: string; expires_at: string; created_at: string;
+  at_risk_residents?: { full_name: string; reference_code: string };
+  hazard_events?: { title: string; is_simulation: boolean };
+}
+
+export interface RoadClosure {
+  id: string; name: string; reason: string; geojson: { type: 'Polygon'; coordinates: number[][][] };
+  source: string; trust_level: 'reported' | 'probable' | 'confirmed'; expires_at: string | null;
+}
+
+export interface DispatchPlan {
+  id: string; status: 'draft' | 'approved' | 'superseded'; trigger_reason: string;
+  plan: Array<{ incident_id: string; report_code: string; priority: PriorityLevel; score: number; team_id: string | null; team_name: string | null; straight_line_km: number | null; reason: string | null; gap: string | null }>;
+  created_at: string; approved_at: string | null;
 }
 
 export interface DuplicateCandidate {
@@ -124,6 +161,7 @@ export interface VoiceTranscription {
   danger_increasing: TriState;
   injury_details: string | null;
   immediate_needs: string[];
+  vulnerability_flags: string[];
   uncertainties: string[];
   source: 'gemini';
   model: string;
@@ -227,8 +265,85 @@ export interface Assignment {
   completed_at: string | null;
   cancelled_at: string | null;
   cancellation_reason: string | null;
+  field_status: AssignmentFieldStatus;
+  accepted_at: string | null;
+  arrived_at: string | null;
+  victim_reached_at: string | null;
+  rejected_at: string | null;
+  rejection_reason: string | null;
+  last_field_update_at: string | null;
+  last_field_location: string | null;
+  last_field_location_accuracy_m: number | null;
   created_at: string;
   updated_at: string;
+}
+
+export interface BackupRequest {
+  id: string;
+  assignment_id: string;
+  incident_id: string;
+  team_id: string;
+  reason: string;
+  status: 'requested' | 'acknowledged' | 'resolved';
+  location: string | null;
+  location_accuracy_m: number | null;
+  requested_by: string | null;
+  created_at: string;
+  acknowledged_at: string | null;
+  resolved_at: string | null;
+}
+
+export interface CompletionSupplyUsage {
+  resource_id: string;
+  quantity: number;
+}
+
+export interface RescueCompletionReport {
+  id: string;
+  assignment_id: string;
+  incident_id: string;
+  team_id: string;
+  people_reached: number;
+  supplies_used: CompletionSupplyUsage[];
+  further_help_needed: boolean;
+  further_help_details: string | null;
+  notes: string | null;
+  location: string | null;
+  location_accuracy_m: number | null;
+  submitted_by: string | null;
+  created_at: string;
+}
+
+export interface IncidentEvidence {
+  id: string;
+  incident_id: string;
+  storage_path: string;
+  mime_type: 'image/jpeg' | 'image/png' | 'image/webp';
+  size_bytes: number;
+  original_name: string | null;
+  review_status: 'pending' | 'verified' | 'disputed';
+  review_notes: string | null;
+  reviewed_by: string | null;
+  reviewed_at: string | null;
+  uploaded_by: string | null;
+  created_at: string;
+}
+
+export interface PublicShelterSuggestion {
+  id: string;
+  name: string;
+  address: string | null;
+  location: string | { type: 'Point'; coordinates: [number, number] } | null;
+  capacity: number;
+  occupancy: number;
+  spaces_available: number;
+  status: ShelterStatus;
+  wheelchair_access: boolean | null;
+  medical_support: boolean | null;
+  family_area: boolean | null;
+  has_power: boolean | null;
+  last_updated_at: string;
+  distance_km: number;
 }
 
 export interface AuditLog {
@@ -286,6 +401,12 @@ export interface TeamRecommendation {
   capability_match: number;
   recommendation_reason: string;
   current_status: TeamStatus;
+  required_capabilities: string[];
+  equipment: string[];
+  missing_equipment: string[];
+  capacity: number;
+  capacity_gap: number;
+  eligible: boolean;
 }
 
 export interface RecalculateResult {
@@ -386,15 +507,26 @@ export const ASSIGNMENT_STATUS_LABELS: Record<AssignmentStatus, string> = {
   cancelled: 'Cancelled',
 };
 
+export const ASSIGNMENT_FIELD_STATUS_LABELS: Record<AssignmentFieldStatus, string> = {
+  awaiting_response: 'Awaiting response',
+  en_route: 'En route',
+  arrived: 'Arrived',
+  victim_reached: 'Victim reached',
+  completed: 'Completed',
+  rejected: 'Rejected',
+};
+
 export const ALERT_TYPE_LABELS: Record<string, string> = {
   critical_incident: 'Critical incident',
   escalation: 'Escalation',
   assignment: 'Assignment',
   assignment_cancelled: 'Assignment cancelled',
+  assignment_rejected: 'Assignment rejected',
   team_unavailable: 'Team unavailable',
   low_stock: 'Low stock',
   shelter_near_full: 'Shelter capacity',
   backup_request: 'Backup request',
+  further_help_needed: 'Further help needed',
 };
 
 export const TEAM_MARKER_COLORS: Record<TeamStatus, string> = {

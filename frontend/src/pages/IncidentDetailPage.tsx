@@ -23,6 +23,10 @@ import { formatDateTime, timeAgo } from '@/lib/utils';
 import { TranscriptText } from '@/components/incident/TranscriptText';
 import { DuplicateReportsPanel } from '@/components/incident/DuplicateReportsPanel';
 import { EvacuationRoutePanel } from '@/components/incident/EvacuationRoutePanel';
+import { IncidentEvidencePanel } from '@/components/incident/IncidentEvidencePanel';
+import { FieldResponsePanel } from '@/components/incident/FieldResponsePanel';
+import { ASSIGNMENT_FIELD_STATUS_LABELS } from '@/types';
+import { TeamEtaPanel } from '@/components/incident/TeamEtaPanel';
 
 const errorMessage = (err: unknown, fallback: string) => (err instanceof Error ? err.message : fallback);
 
@@ -253,13 +257,10 @@ export function IncidentDetailPage() {
                 {Array.isArray(inc.ai_extracted.uncertainties) && inc.ai_extracted.uncertainties.length > 0 && <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs"><strong className="text-amber-900">Still needs verification</strong><ul className="mt-1 list-disc pl-4 text-amber-900">{inc.ai_extracted.uncertainties.map((item) => <li key={String(item)}>{String(item)}</li>)}</ul></div>}
               </div>
             )}
-            {inc.photo_url && (
-              <div className="mt-4 border-t border-neutral-200 pt-4">
-                <p className="mb-2 text-xs font-semibold text-neutral-700">Reporter evidence (authorized staff only)</p>
-                <img src={inc.photo_url} alt="Evidence supplied with this incident report" className="max-h-96 w-full rounded-lg border border-neutral-200 object-contain bg-neutral-50" />
-              </div>
-            )}
           </div>
+
+          <IncidentEvidencePanel incidentId={inc.id} legacyPhotoUrl={inc.photo_url} />
+          <FieldResponsePanel incidentId={inc.id} />
 
           <DuplicateReportsPanel incident={inc} />
           <EvacuationRoutePanel incident={inc} />
@@ -312,6 +313,7 @@ export function IncidentDetailPage() {
                   </div>
                   <AssignmentStatusBadge status={activeAssignment.status} />
                 </div>
+                {activeAssignment.field_status && <p className="mt-2 text-xs text-blue-800">Field progress: <strong>{ASSIGNMENT_FIELD_STATUS_LABELS[activeAssignment.field_status]}</strong>{activeAssignment.last_field_update_at ? ` · updated ${timeAgo(activeAssignment.last_field_update_at)}` : ''}</p>}
                 <div className="flex items-center gap-2 mt-2">
                   {activeAssignment.status === 'assigned' && (
                     <button className="btn-secondary btn-sm" disabled={setAssignmentStatus.isPending} onClick={() => void handleAssignmentStatus(activeAssignment.id, 'dispatched')}>
@@ -351,8 +353,11 @@ export function IncidentDetailPage() {
                           <span className="text-xs text-neutral-500">{rec.distance_km} km</span>
                         </div>
                         <p className="text-[10px] text-neutral-500">{rec.recommendation_reason}</p>
+                        {rec.missing_equipment.length > 0 && <p className="text-[10px] font-medium text-red-600 mt-1">Missing equipment: {rec.missing_equipment.join(', ')}</p>}
+                        {rec.capacity_gap > 0 && <p className="text-[10px] font-medium text-amber-700">Capacity shortfall: {rec.capacity_gap} people</p>}
                       </div>
                     ))}
+                    <TeamEtaPanel incident={inc} teams={teams.data ?? []} recommendations={recommendations.data} />
                   </div>
                 ) : (
                   <p className="text-xs text-neutral-400">No available teams with matching capabilities.</p>
@@ -433,7 +438,8 @@ export function IncidentDetailPage() {
                   return (
                     <button
                       key={rec.team_id}
-                      className={`w-full text-left p-3 rounded-lg border-2 transition-all ${selectedTeam === rec.team_id ? 'border-primary-500 bg-primary-50' : 'border-neutral-200 hover:border-neutral-300'}`}
+                      disabled={!rec.eligible}
+                      className={`w-full text-left p-3 rounded-lg border-2 transition-all disabled:opacity-55 disabled:cursor-not-allowed ${selectedTeam === rec.team_id ? 'border-primary-500 bg-primary-50' : 'border-neutral-200 hover:border-neutral-300'}`}
                       onClick={() => setSelectedTeam(rec.team_id)}
                     >
                       <div className="flex items-center justify-between mb-1">
@@ -444,6 +450,8 @@ export function IncidentDetailPage() {
                         </div>
                       </div>
                       <p className="text-xs text-neutral-500">{rec.recommendation_reason}</p>
+                      {rec.missing_equipment.length > 0 && <p className="text-xs text-red-600">Missing: {rec.missing_equipment.join(', ')}</p>}
+                      {rec.capacity_gap > 0 && <p className="text-xs text-amber-700">Capacity shortfall: {rec.capacity_gap}</p>}
                     </button>
                   );
                 })

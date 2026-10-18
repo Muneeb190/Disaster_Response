@@ -1,5 +1,5 @@
 import { Link, NavLink } from 'react-router-dom';
-import { LayoutDashboard, ListFilter, Radio, RadioTower, House, Package, Bell, BellRing, ClipboardList, History, FileText, UserCog, LogOut, Globe, MapPin } from 'lucide-react';
+import { LayoutDashboard, ListFilter, Radio, RadioTower, House, Package, Bell, BellRing, ClipboardList, History, FileText, UserCog, LogOut, Globe, MapPin, ShieldCheck, GitBranch } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useRealtimeSync, type RealtimeStatus } from '@/hooks/useRealtime';
 import { useDashboardSummary, useDemoPresence } from '@/hooks/useData';
@@ -15,6 +15,8 @@ const navItems = [
   { to: '/teams', label: 'Teams', icon: RadioTower },
   { to: '/resources', label: 'Resources', icon: Package },
   { to: '/shelters', label: 'Shelters', icon: House },
+  { to: '/vulnerability', label: 'Vulnerability', icon: ShieldCheck },
+  { to: '/planning', label: 'Dispatch planning', icon: GitBranch },
   { to: '/activity', label: 'Activity history', icon: History },
   { to: '/reports/summary', label: 'Situation report', icon: FileText },
   { to: '/admin/users', label: 'Users & roles', icon: UserCog },

@@ -19,6 +19,11 @@ import type {
   DuplicateCandidate,
   PriorityLevel,
   DangerZone,
+  IncidentEvidence,
+  PublicShelterSuggestion,
+  RescueCompletionReport,
+  CompletionSupplyUsage,
+  BackupRequest,
 } from '@/types';
 
 export interface CreateIncidentInput {
@@ -44,6 +49,9 @@ export interface CreateIncidentInput {
   voice_transcript?: string | null;
   transcript_language?: import('@/types').TranscriptLanguage | null;
   transcript_english?: string | null;
+  is_proxy_report?: boolean;
+  proxy_relationship?: string;
+  vulnerability_flags?: string[];
 }
 
 export interface CreateIncidentResult {
@@ -219,7 +227,7 @@ export function useCreateIncident() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (input: CreateIncidentInput) => {
-      const { data, error } = await supabase.rpc('submit_public_incident', {
+      const { data, error } = await supabase.rpc('submit_public_incident_v2', {
         p_type: input.type,
         p_description: input.description,
         p_area_landmark: input.area_landmark || null,
@@ -242,6 +250,9 @@ export function useCreateIncident() {
         p_voice_transcript: input.voice_transcript ?? null,
         p_transcript_language: input.transcript_language ?? null,
         p_transcript_english: input.transcript_english ?? null,
+        p_is_proxy_report: input.is_proxy_report ?? false,
+        p_proxy_relationship: input.proxy_relationship || null,
+        p_vulnerability_flags: input.vulnerability_flags ?? [],
       });
       if (error) throw error;
       return data as CreateIncidentResult;
@@ -497,8 +508,8 @@ export function useUpdateResource() {
 export function useAdjustResource() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async ({ id, delta, reason }: { id: string; delta: number; reason: string }) => {
-      const { data, error } = await supabase.rpc('admin_adjust_resource', { p_resource_id: id, p_delta: delta, p_reason: reason });
+    mutationFn: async ({ id, delta, reason, source, destination }: { id: string; delta: number; reason: string; source?: string; destination?: string }) => {
+      const { data, error } = await supabase.rpc('admin_adjust_resource_v2', { p_resource_id: id, p_delta: delta, p_reason: reason, p_source: source || null, p_destination: destination || null });
       if (error) throw error;
       return data as Resource;
     },
@@ -594,6 +605,188 @@ export function useAssignmentsForIncident(incidentId: string) {
   });
 }
 
+export interface ResponderLocation {
+  latitude: number;
+  longitude: number;
+  accuracy: number | null;
+}
+
+function responderLocationParams(location: ResponderLocation | null) {
+  return {
+    p_latitude: location?.latitude ?? null,
+    p_longitude: location?.longitude ?? null,
+    p_accuracy_m: location?.accuracy ?? null,
+  };
+}
+
+function invalidateFieldWorkflow(queryClient: ReturnType<typeof useQueryClient>, incidentId?: string) {
+  queryClient.invalidateQueries({ queryKey: ['assignments'] });
+  queryClient.invalidateQueries({ queryKey: ['incidents'] });
+  queryClient.invalidateQueries({ queryKey: ['teams'] });
+  queryClient.invalidateQueries({ queryKey: ['resources'] });
+  queryClient.invalidateQueries({ queryKey: ['alerts'] });
+  queryClient.invalidateQueries({ queryKey: ['audit-logs'] });
+  queryClient.invalidateQueries({ queryKey: ['dashboard-summary'] });
+  if (incidentId) {
+    queryClient.invalidateQueries({ queryKey: ['incident', incidentId] });
+    queryClient.invalidateQueries({ queryKey: ['assignments-incident', incidentId] });
+    queryClient.invalidateQueries({ queryKey: ['incident-events', incidentId] });
+  }
+}
+
+export function useResponderAssignmentAction() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      assignmentId,
+      action,
+      reason,
+      location,
+    }: {
+      assignmentId: string;
+      action: 'accept' | 'arrived' | 'victim_reached' | 'needs_backup';
+      reason?: string;
+      location: ResponderLocation | null;
+    }) => {
+      const { data, error } = await supabase.rpc('responder_assignment_action', {
+        p_assignment_id: assignmentId,
+        p_action: action,
+        p_reason: reason || null,
+        ...responderLocationParams(location),
+      });
+      if (error) throw error;
+      return data as Assignment;
+    },
+    onSuccess: (assignment) => invalidateFieldWorkflow(queryClient, assignment.incident_id),
+  });
+}
+
+export function useResponderRejectAssignment() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ assignmentId, reason }: { assignmentId: string; reason: string }) => {
+      const { data, error } = await supabase.rpc('responder_reject_assignment', {
+        p_assignment_id: assignmentId,
+        p_reason: reason,
+      });
+      if (error) throw error;
+      return data as Assignment;
+    },
+    onSuccess: (assignment) => invalidateFieldWorkflow(queryClient, assignment.incident_id),
+  });
+}
+
+export function useResponderCompleteAssignment() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      assignmentId,
+      peopleReached,
+      suppliesUsed,
+      furtherHelpNeeded,
+      furtherHelpDetails,
+      notes,
+      location,
+    }: {
+      assignmentId: string;
+      peopleReached: number;
+      suppliesUsed: CompletionSupplyUsage[];
+      furtherHelpNeeded: boolean;
+      furtherHelpDetails?: string;
+      notes?: string;
+      location: ResponderLocation | null;
+    }) => {
+      const { data, error } = await supabase.rpc('responder_complete_assignment', {
+        p_assignment_id: assignmentId,
+        p_people_reached: peopleReached,
+        p_supplies_used: suppliesUsed,
+        p_further_help_needed: furtherHelpNeeded,
+        p_further_help_details: furtherHelpDetails || null,
+        p_notes: notes || null,
+        ...responderLocationParams(location),
+      });
+      if (error) throw error;
+      return data as RescueCompletionReport;
+    },
+    onSuccess: (report) => invalidateFieldWorkflow(queryClient, report.incident_id),
+  });
+}
+
+export function useIncidentEvidence(incidentId: string) {
+  return useQuery({
+    queryKey: ['incident-evidence', incidentId],
+    queryFn: async () => {
+      const { data, error } = await supabase.from('incident_evidence').select('*')
+        .eq('incident_id', incidentId).order('created_at', { ascending: false });
+      if (error) throw error;
+      return data as IncidentEvidence[];
+    },
+    enabled: !!incidentId,
+  });
+}
+
+export function useBackupRequestsForIncident(incidentId: string) {
+  return useQuery({
+    queryKey: ['backup-requests', incidentId],
+    queryFn: async () => {
+      const { data, error } = await supabase.from('backup_requests').select('*')
+        .eq('incident_id', incidentId).order('created_at', { ascending: false });
+      if (error) throw error;
+      return data as BackupRequest[];
+    },
+    enabled: !!incidentId,
+  });
+}
+
+export function useCompletionReportsForIncident(incidentId: string) {
+  return useQuery({
+    queryKey: ['completion-reports', incidentId],
+    queryFn: async () => {
+      const { data, error } = await supabase.from('rescue_completion_reports').select('*')
+        .eq('incident_id', incidentId).order('created_at', { ascending: false });
+      if (error) throw error;
+      return data as RescueCompletionReport[];
+    },
+    enabled: !!incidentId,
+  });
+}
+
+export function useReviewIncidentEvidence() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ evidenceId, status, notes }: { evidenceId: string; status: 'verified' | 'disputed'; notes?: string }) => {
+      const { data, error } = await supabase.rpc('admin_review_incident_evidence', {
+        p_evidence_id: evidenceId,
+        p_status: status,
+        p_notes: notes || null,
+      });
+      if (error) throw error;
+      return data as IncidentEvidence;
+    },
+    onSuccess: (evidence) => {
+      queryClient.invalidateQueries({ queryKey: ['incident-evidence', evidence.incident_id] });
+      queryClient.invalidateQueries({ queryKey: ['incident-events', evidence.incident_id] });
+      queryClient.invalidateQueries({ queryKey: ['audit-logs'] });
+    },
+  });
+}
+
+export function usePublicShelterSuggestions(reportCode: string, trackingToken: string, needs: string[]) {
+  return useQuery({
+    queryKey: ['public-shelter-suggestions', reportCode, trackingToken, needs],
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc('get_public_shelter_suggestions', {
+        p_report_code: reportCode,
+        p_tracking_token: trackingToken || null,
+        p_needs: needs,
+      });
+      if (error) throw error;
+      return data as PublicShelterSuggestion[];
+    },
+    enabled: Boolean(reportCode),
+  });
+}
+
 export function useCreateAssignment() {
   const queryClient = useQueryClient();
   return useMutation({
@@ -666,7 +859,7 @@ export function useTeamRecommendations(incidentId: string) {
   return useQuery({
     queryKey: ['recommendations', incidentId],
     queryFn: async () => {
-      const { data, error } = await supabase.rpc('recommend_teams', { p_incident_id: incidentId });
+      const { data, error } = await supabase.rpc('recommend_teams_v2', { p_incident_id: incidentId });
       if (error) throw error;
       return data as unknown as TeamRecommendation[];
     },

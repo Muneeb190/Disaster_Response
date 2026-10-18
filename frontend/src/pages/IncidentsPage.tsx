@@ -22,6 +22,7 @@ export function IncidentsPage() {
   const [openOnly, setOpenOnly] = useState(params.get('open') !== '0');
   const [sort, setSort] = useState<'priority' | 'newest' | 'waiting'>('priority');
   const [includeLinked, setIncludeLinked] = useState(false);
+  const [originFilter, setOriginFilter] = useState('');
 
   const incidents = useIncidents({
     type: (typeFilter || undefined) as IncidentType | undefined,
@@ -41,6 +42,7 @@ export function IncidentsPage() {
   const filtered = (incidents.data ?? []).filter((inc) => {
     if (openOnly && !statusFilter && !isOpen(inc.status)) return false;
     if (areaFilter && inc.area_landmark?.trim() !== areaFilter) return false;
+    if (originFilter && inc.incident_origin !== originFilter) return false;
     if (urgentLane.includes(inc)) return false;
     if (!search) return true;
     const q = search.toLowerCase();
@@ -105,15 +107,16 @@ export function IncidentsPage() {
             <option value="waiting">Waiting longest first</option>
             <option value="newest">Newest first</option>
           </select>
+          <select className="select w-auto" value={originFilter} onChange={(e) => setOriginFilter(e.target.value)}><option value="">All origins</option><option value="public_report">Public reports</option><option value="proactive_check">Proactive welfare checks</option></select>
           <label className="text-xs text-neutral-600 flex items-center gap-1.5"><input type="checkbox" checked={openOnly} onChange={(e) => setOpenOnly(e.target.checked)} /> Open only</label>
           <label className="flex items-center gap-2 text-xs text-neutral-600 whitespace-nowrap">
             <input type="checkbox" checked={includeLinked} onChange={(e) => setIncludeLinked(e.target.checked)} />
             Show combined source reports
           </label>
-          {(typeFilter || priorityFilter || statusFilter || verificationFilter || areaFilter || search || includeLinked) && (
+          {(typeFilter || priorityFilter || statusFilter || verificationFilter || areaFilter || originFilter || search || includeLinked) && (
             <button
               className="btn-ghost btn-sm"
-              onClick={() => { setTypeFilter(''); setPriorityFilter(''); setStatusFilter(''); setVerificationFilter(''); setAreaFilter(''); setSearch(''); setIncludeLinked(false); }}
+              onClick={() => { setTypeFilter(''); setPriorityFilter(''); setStatusFilter(''); setVerificationFilter(''); setAreaFilter(''); setOriginFilter(''); setSearch(''); setIncludeLinked(false); }}
             >
               <Filter size={14} /> Clear
             </button>

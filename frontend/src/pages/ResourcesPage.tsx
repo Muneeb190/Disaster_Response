@@ -9,6 +9,8 @@ import { LocationField } from '@/components/map/LocationField';
 import { useResources, useCreateResource, useUpdateResource, useAdjustResource } from '@/hooks/useData';
 import { parseLocation, type Resource } from '@/types';
 import { timeAgo } from '@/lib/utils';
+import { useQuery } from '@tanstack/react-query';
+import { supabase } from '@/lib/supabase';
 
 const RESOURCE_TYPES = ['boat', 'ambulance', 'vehicle', 'medical_kit', 'drinking_water', 'food', 'blanket', 'fuel', 'communication'];
 
@@ -21,6 +23,7 @@ export function ResourcesPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [adjusting, setAdjusting] = useState<Resource | null>(null);
   const lowCount = (resources.data ?? []).filter((r) => r.quantity_available <= r.low_stock_threshold).length;
+  const movements = useQuery({ queryKey: ['resource-movements'], queryFn: async () => { const { data, error } = await supabase.from('resource_movements').select('*,resources(name)').order('created_at', { ascending: false }).limit(50); if (error) throw error; return data as Array<{ id: string; movement_type: string; quantity: number; source_location: string | null; destination_location: string | null; reason: string; created_at: string; resources?: { name: string } | null }>; } });
 
   return (
     <DashboardLayout
@@ -116,6 +119,12 @@ export function ResourcesPage() {
           }}
         />
       )}
+
+      <section className="card card-body mt-5">
+        <h2 className="font-semibold">Resource movement ledger</h2>
+        <p className="text-xs text-neutral-500 mt-1">Append-only stock history showing what moved, when, and why.</p>
+        <div className="overflow-x-auto mt-3"><table className="table"><thead><tr><th>Time</th><th>Resource</th><th>Movement</th><th>Quantity</th><th>From / to</th><th>Reason</th></tr></thead><tbody>{movements.data?.map((m) => <tr key={m.id}><td>{timeAgo(m.created_at)}</td><td>{m.resources?.name ?? 'Resource'}</td><td className="capitalize">{m.movement_type}</td><td>{m.quantity}</td><td>{[m.source_location, m.destination_location].filter(Boolean).join(' → ') || '—'}</td><td>{m.reason}</td></tr>)}</tbody></table></div>
+      </section>
     </DashboardLayout>
   );
 }
@@ -127,12 +136,14 @@ function AdjustStockModal({ resource, onClose }: { resource: Resource; onClose: 
   const [direction, setDirection] = useState<1 | -1>(1);
   const [amount, setAmount] = useState(1);
   const [reason, setReason] = useState('');
+  const [source, setSource] = useState('');
+  const [destination, setDestination] = useState('');
   const delta = direction * amount;
   const tooMany = resource.quantity_available + delta < 0;
 
   const save = async () => {
     try {
-      await adjust.mutateAsync({ id: resource.id, delta, reason: reason.trim() });
+      await adjust.mutateAsync({ id: resource.id, delta, reason: reason.trim(), source: source.trim(), destination: destination.trim() });
       toast(`${resource.name}: ${delta > 0 ? '+' : ''}${delta}`, 'success');
       onClose();
     } catch (err) { toast(err instanceof Error ? err.message : 'Failed to adjust stock', 'error'); }
@@ -150,6 +161,7 @@ function AdjustStockModal({ resource, onClose }: { resource: Resource; onClose: 
       {tooMany && <p className="text-xs text-red-600 mt-1">Only {resource.quantity_available} available.</p>}
       <label className="label mt-3">Reason</label>
       <textarea className="input resize-none" rows={2} value={reason} onChange={(e) => setReason(e.target.value)} placeholder="e.g. Delivery from district depot" />
+      <div className="grid grid-cols-2 gap-2 mt-3"><div><label className="label">Source</label><input className="input" value={source} onChange={(e) => setSource(e.target.value)} placeholder="District depot" /></div><div><label className="label">Destination</label><input className="input" value={destination} onChange={(e) => setDestination(e.target.value)} placeholder={direction > 0 ? resource.name : 'Team / incident'} /></div></div>
       <p className="text-xs text-neutral-500 mt-2">New available quantity: <strong>{Math.max(0, resource.quantity_available + delta)}</strong></p>
       <div className="flex justify-end gap-3 mt-4">
         <button className="btn-secondary" onClick={onClose}>Cancel</button>
