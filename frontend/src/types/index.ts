@@ -80,6 +80,20 @@ export interface DuplicateCandidate {
   review_status: 'suggested' | 'unlinked';
 }
 
+export interface DangerZone {
+  id: string;
+  incident_id: string | null;
+  name: string;
+  hazard_type: IncidentType;
+  severity: PriorityLevel;
+  geojson: { type: 'Polygon' | 'MultiPolygon'; coordinates: number[][][] | number[][][][] };
+  radius_m: number;
+  source: 'user_report' | 'coordinator' | 'official';
+  verification_status: 'provisional' | 'confirmed' | 'rejected';
+  instructions: string | null;
+  expires_at: string | null;
+}
+
 export type TranscriptLanguage = 'en' | 'ur' | 'mixed' | 'other';
 
 export const LANGUAGE_LABELS: Record<TranscriptLanguage, string> = {

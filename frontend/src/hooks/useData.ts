@@ -13,6 +13,7 @@ import type {
   TeamRecommendation,
   TriState,
   DuplicateCandidate,
+  DangerZone,
 } from '@/types';
 
 export interface CreateIncidentInput {
@@ -96,6 +97,17 @@ export function useDuplicateCandidates(incidentId: string) {
       return data as unknown as DuplicateCandidate[];
     },
     enabled: !!incidentId,
+  });
+}
+
+export function useDangerZones() {
+  return useQuery({
+    queryKey: ['danger-zones'],
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc('list_active_danger_zones');
+      if (error) throw error;
+      return data as unknown as DangerZone[];
+    },
   });
 }
 

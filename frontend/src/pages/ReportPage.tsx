@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { Radio, ArrowLeft, ArrowRight, Check, Copy, MapPin, Sparkles, AlertCircle, Search, MessageCircleQuestion, Mic, Square, Trash2 } from 'lucide-react';
+import { Radio, ArrowLeft, ArrowRight, Check, Copy, MapPin, LocateFixed, Sparkles, AlertCircle, Search, MessageCircleQuestion, Mic, Square, Trash2 } from 'lucide-react';
 import { LocationPicker } from '@/components/map/IncidentMap';
 import { useCreateIncident } from '@/hooks/useData';
 import { useToast } from '@/components/ui/toast-context';
@@ -12,6 +12,7 @@ import { Modal } from '@/components/ui/Modal';
 import { pickFollowupQuestion, type FollowupQuestion } from '@/lib/followup';
 import { isRecordingSupported, startRecording, toWavBase64, type Recording } from '@/lib/voiceRecorder';
 import { TranscriptText } from '@/components/incident/TranscriptText';
+import { reverseGeocode } from '@/lib/geocoding';
 import type { IncidentType, TriState, VoiceTranscription } from '@/types';
 
 const schema = z.object({
@@ -47,6 +48,8 @@ export function ReportPage() {
   const { toast } = useToast();
   const createIncident = useCreateIncident();
   const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(null);
+  const [locationName, setLocationName] = useState('');
+  const [locating, setLocating] = useState(false);
   const [submittedCode, setSubmittedCode] = useState<string | null>(null);
   const [submittedToken, setSubmittedToken] = useState<string | null>(null);
   const [aiExtracting, setAiExtracting] = useState(false);
@@ -81,6 +84,36 @@ export function ReportPage() {
   });
 
   const description = watch('description');
+
+  const selectLocation = async (lat: number, lng: number) => {
+    setCoords({ lat, lng });
+    setLocationName('Identifying area…');
+    try {
+      const name = await reverseGeocode(lat, lng);
+      setLocationName(name);
+      if (!watch('area_landmark')) setValue('area_landmark', name, { shouldDirty: true });
+    } catch {
+      setLocationName('Selected location');
+    }
+  };
+
+  const useCurrentLocation = () => {
+    if (!navigator.geolocation) {
+      toast('Location is not supported by this browser', 'error');
+      return;
+    }
+    setLocating(true);
+    navigator.geolocation.getCurrentPosition(
+      ({ coords: current }) => {
+        void selectLocation(current.latitude, current.longitude).finally(() => setLocating(false));
+      },
+      (error) => {
+        setLocating(false);
+        toast(error.code === error.PERMISSION_DENIED ? 'Allow location access and try again' : 'Could not get your current location', 'error');
+      },
+      { enableHighAccuracy: true, timeout: 12000, maximumAge: 15000 },
+    );
+  };
 
   useEffect(() => {
     if (!recording) return;
@@ -436,14 +469,17 @@ export function ReportPage() {
 
           {/* Location */}
           <div className="card card-body">
-            <label className="label">
-              Location <span className="text-error">*</span> — <span className="text-neutral-400 font-normal">Click on the map to pin your location</span>
-            </label>
-            <LocationPicker onPick={(lat, lng) => setCoords({ lat, lng })} />
+            <div className="flex items-center justify-between gap-3 mb-2">
+              <label className="label mb-0">Location <span className="text-error">*</span> — <span className="text-neutral-400 font-normal">Tap the map or use your phone location</span></label>
+              <button type="button" className="btn-primary btn-sm shrink-0" onClick={useCurrentLocation} disabled={locating}>
+                {locating ? <LoadingSpinner size={14} /> : <LocateFixed size={14} />} {locating ? 'Locating…' : 'Use my location'}
+              </button>
+            </div>
+            <LocationPicker onPick={(lat, lng) => void selectLocation(lat, lng)} initialPos={coords ? [coords.lat, coords.lng] : undefined} />
             {coords && (
               <div className="mt-2 flex items-center gap-2 text-xs text-green-700">
                 <MapPin size={14} />
-                Pinned: {coords.lat.toFixed(4)}, {coords.lng.toFixed(4)}
+                {locationName || 'Selected location'}
               </div>
             )}
           </div>

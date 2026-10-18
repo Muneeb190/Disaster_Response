@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useRef } from 'react';
-import { MapContainer, TileLayer, Marker, Popup, CircleMarker, useMap } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Popup, CircleMarker, GeoJSON, Polyline, useMap } from 'react-leaflet';
 import L from 'leaflet';
+import type { GeoJsonObject } from 'geojson';
 import 'leaflet/dist/leaflet.css';
 import { parseLocation } from '@/types';
-import type { Incident, RescueTeam, Resource } from '@/types';
+import type { DangerZone, Incident, RescueTeam, Resource } from '@/types';
 import { PriorityBadge } from '@/components/ui/Badges';
 import { INCIDENT_TYPE_LABELS, STATUS_LABELS } from '@/types';
 import { timeAgo } from '@/lib/utils';
@@ -29,6 +30,9 @@ const incidentIcons = {
 const teamIcon = makeIcon('#16a34a', 'T');
 const resourceIcon = makeIcon('#8b5cf6', 'R');
 const shelterIcon = makeIcon('#0891b2', 'S');
+const ISLAMABAD: [number, number] = [33.6844, 73.0479];
+const mapTilerKey = import.meta.env.VITE_MAPTILER_KEY;
+const tileUrl = mapTilerKey ? `https://api.maptiler.com/maps/streets-v2/{z}/{x}/{y}.png?key=${mapTilerKey}` : 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
 
 function FitBounds({ incidents, teams, resources }: { incidents: Incident[]; teams: RescueTeam[]; resources: Resource[] }) {
   const map = useMap();
@@ -69,17 +73,21 @@ interface IncidentMapProps {
   showTeams?: boolean;
   showResources?: boolean;
   height?: string;
+  dangerZones?: DangerZone[];
+  route?: [number, number][];
 }
 
-export function IncidentMap({ incidents = [], teams = [], resources = [], onIncidentClick, showTeams = true, showResources = true, height = '500px' }: IncidentMapProps) {
+export function IncidentMap({ incidents = [], teams = [], resources = [], onIncidentClick, showTeams = true, showResources = true, height = '500px', dangerZones = [], route = [] }: IncidentMapProps) {
   return (
     <div className="card overflow-hidden" style={{ height }}>
-      <MapContainer center={[28.61, 77.2]} zoom={12} style={{ height: '100%', width: '100%' }} scrollWheelZoom>
+      <MapContainer center={ISLAMABAD} zoom={12} style={{ height: '100%', width: '100%' }} scrollWheelZoom>
         <TileLayer
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+          url={tileUrl}
         />
         <FitBounds incidents={incidents} teams={teams} resources={resources} />
+        {dangerZones.map((zone) => <GeoJSON key={zone.id} data={zone.geojson as GeoJsonObject} pathOptions={{ color: zone.severity === 'critical' ? '#dc2626' : '#ea580c', fillOpacity: zone.verification_status === 'confirmed' ? 0.28 : 0.14, dashArray: zone.verification_status === 'provisional' ? '6 6' : undefined }}><Popup><strong>{zone.name}</strong><br />{zone.verification_status === 'provisional' ? 'Unverified public report' : 'Confirmed danger zone'}<br />{zone.instructions}</Popup></GeoJSON>)}
+        {route.length > 1 && <Polyline positions={route} pathOptions={{ color: '#2563eb', weight: 6, opacity: 0.85 }} />}
 
         {incidents.map((inc) => {
           const pos = parseLocation(inc.location);
@@ -156,13 +164,13 @@ export function IncidentMap({ incidents = [], teams = [], resources = [], onInci
 
 // A simpler map for picking a location (report form)
 export function LocationPicker({ onPick, initialPos }: { onPick: (lat: number, lng: number) => void; initialPos?: [number, number] }) {
-  const center = initialPos || [28.61, 77.2];
+  const center = initialPos || ISLAMABAD;
   return (
     <div className="card overflow-hidden h-[300px]">
       <MapContainer center={center} zoom={12} style={{ height: '100%', width: '100%' }} scrollWheelZoom>
         <TileLayer
           attribution='&copy; OpenStreetMap contributors'
-          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+          url={tileUrl}
         />
         <LocationClickHandler onPick={onPick} initialPos={initialPos} />
       </MapContainer>
@@ -203,7 +211,7 @@ export function MiniMap({ position, height = '250px' }: { position: [number, num
       <MapContainer center={position} zoom={14} style={{ height: '100%', width: '100%' }} scrollWheelZoom>
         <TileLayer
           attribution='&copy; OpenStreetMap contributors'
-          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+          url={tileUrl}
         />
         <CircleMarker center={position} radius={12} pathOptions={{ color: '#dc2626', fillColor: '#dc2626', fillOpacity: 0.4 }} />
         <Marker position={position} icon={incidentIcons.critical} />

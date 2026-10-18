@@ -22,6 +22,7 @@ import { formatDateTime, timeAgo } from '@/lib/utils';
 import { TranscriptText } from '@/components/incident/TranscriptText';
 import { LANGUAGE_LABELS } from '@/types';
 import { DuplicateReportsPanel } from '@/components/incident/DuplicateReportsPanel';
+import { EvacuationRoutePanel } from '@/components/incident/EvacuationRoutePanel';
 
 export function IncidentDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -254,6 +255,7 @@ export function IncidentDetailPage() {
           </div>
 
           <DuplicateReportsPanel incident={inc} />
+          <EvacuationRoutePanel incident={inc} />
 
           {/* Reported conditions */}
           <div className="card card-body">

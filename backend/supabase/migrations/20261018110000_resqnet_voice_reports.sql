@@ -15,7 +15,6 @@ alter table public.incidents
   add column if not exists voice_transcript text,
   add column if not exists transcript_language text,
   add column if not exists transcript_english text;
-
 do $$ begin
   alter table public.incidents add constraint incidents_input_mode_check check (input_mode in ('text', 'voice'));
 exception when duplicate_object then null; end $$;
@@ -23,9 +22,7 @@ do $$ begin
   alter table public.incidents add constraint incidents_transcript_language_check
     check (transcript_language is null or transcript_language in ('en', 'ur', 'mixed', 'other'));
 exception when duplicate_object then null; end $$;
-
 drop function if exists public.submit_public_incident(public.incident_type,text,text,int,public.tri_state,public.tri_state,public.tri_state,public.tri_state,double precision,double precision,text,text,jsonb,text,text,public.tri_state,boolean);
-
 create or replace function public.submit_public_incident(
   p_type public.incident_type,
   p_description text,
@@ -101,6 +98,5 @@ begin
   );
 end;
 $$;
-
 revoke execute on function public.submit_public_incident(public.incident_type,text,text,int,public.tri_state,public.tri_state,public.tri_state,public.tri_state,double precision,double precision,text,text,jsonb,text,text,public.tri_state,boolean,text,text,text,text) from public;
 grant execute on function public.submit_public_incident(public.incident_type,text,text,int,public.tri_state,public.tri_state,public.tri_state,public.tri_state,double precision,double precision,text,text,jsonb,text,text,public.tri_state,boolean,text,text,text,text) to anon, authenticated;

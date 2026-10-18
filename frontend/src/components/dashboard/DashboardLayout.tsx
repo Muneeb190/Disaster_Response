@@ -48,7 +48,7 @@ export function DashboardSidebar() {
         <p className="command-overline">Active operation</p>
         <div className="flex items-center gap-2 text-[12px] text-slate-200"><span className="command-status-dot command-status-dot-amber" /> River flood response</div>
         <p className="command-mono mt-3">SAC-FL-2026-042</p>
-        <p className="text-[11px] text-slate-400 mt-2 leading-relaxed">Operational period 03 06:00<br />–18:00 PDT</p>
+        <p className="text-[11px] text-slate-400 mt-2 leading-relaxed">Pakistan emergency<br />coordination network</p>
       </div>
 
       <div className="command-handover">
@@ -71,7 +71,7 @@ export function DashboardTopBar({ title, subtitle, children }: { title: string; 
         <div className="command-top-logo"><Radio size={15} /></div>
         <span className="command-top-brand">FIELDWORK</span>
         <span className="command-divider" />
-        <span className="command-location">Sacramento County EOC <ChevronDown size={14} /></span>
+        <span className="command-location">Islamabad Command Centre <ChevronDown size={14} /></span>
         <span className="command-level"><span /> LEVEL 2 · PARTIAL ACTIVATION</span>
       </div>
       <div className="flex items-center gap-4">

@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useQueryClient } from '@tanstack/react-query';
+import { showBrowserNotification } from '@/lib/notifications';
 
 export function useRealtimeSync() {
   const qc = useQueryClient();
@@ -28,8 +29,15 @@ export function useRealtimeSync() {
         qc.invalidateQueries({ queryKey: ['assignments'] });
         qc.invalidateQueries({ queryKey: ['incidents'] });
       })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'alerts' }, () => {
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'alerts' }, (payload) => {
         qc.invalidateQueries({ queryKey: ['alerts'] });
+        if (payload.eventType === 'INSERT') {
+          const alert = payload.new as { severity?: string; message?: string };
+          void showBrowserNotification(`ResQNet ${alert.severity ?? 'alert'}`, alert.message ?? 'New response alert');
+        }
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'danger_zones' }, () => {
+        qc.invalidateQueries({ queryKey: ['danger-zones'] });
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'escalations' }, () => {
         qc.invalidateQueries({ queryKey: ['escalations'] });
