@@ -4,7 +4,6 @@
     "useDefineForClassFields": true,
     "lib": ["ES2020", "DOM", "DOM.Iterable"],
     "module": "ESNext",
-    "baseUrl": ".",
     "skipLibCheck": true,
 
     /* Bundler mode */
@@ -15,9 +14,9 @@
     "noEmit": true,
     "jsx": "react-jsx",
 
-    /* Path alias — depth-invariant imports for src (@/foo === src/foo from any file) */
+    /* Path alias, resolved relative to this config file */
     "paths": {
-      "@/*": ["src/*"]
+      "@/*": ["./src/*"]
     },
 
     /* Linting */
