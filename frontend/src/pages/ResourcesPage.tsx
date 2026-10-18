@@ -53,11 +53,11 @@ export function ResourcesPage() {
                     </div>
                     <div>
                       <p className="text-sm font-semibold text-neutral-800">{res.name}</p>
-                      <span className="text-[10px] text-neutral-400 capitalize">{res.type.replace(/_/g, ' ')}</span>
+                      <span className="text-xs text-neutral-400 capitalize">{res.type.replace(/_/g, ' ')}</span>
                     </div>
                   </div>
                   <div className="flex flex-col items-end gap-1">
-                    {isLow && <span className="badge-warning text-[10px] flex items-center gap-0.5"><TrendingDown size={10} /> {res.quantity_available === 0 ? 'Out of stock' : 'Low'}</span>}
+                    {isLow && <span className="badge-warning text-xs flex items-center gap-0.5"><TrendingDown size={10} /> {res.quantity_available === 0 ? 'Out of stock' : 'Low'}</span>}
                     {res.is_demo && <DemoBadge />}
                   </div>
                 </div>
@@ -71,7 +71,7 @@ export function ResourcesPage() {
                     <div className="bg-green-500 h-full" style={{ width: `${total > 0 ? (res.quantity_available / total) * 100 : 0}%` }} />
                     <div className="bg-orange-400 h-full" style={{ width: `${total > 0 ? (res.quantity_reserved / total) * 100 : 0}%` }} />
                   </div>
-                  <p className="text-[10px] text-neutral-400">Total {total} · low-stock warning at {res.low_stock_threshold}</p>
+                  <p className="text-xs text-neutral-400">Total {total} · low-stock warning at {res.low_stock_threshold}</p>
                 </div>
 
                 <div className="flex items-center gap-3 mt-3 text-xs text-neutral-500">

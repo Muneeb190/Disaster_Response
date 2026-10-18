@@ -66,7 +66,7 @@ export function PublicShelterSuggestions({
       ) : (
         <p className="mt-4 text-xs text-amber-800">No open shelter currently matches the selected needs. Do not travel without coordinator guidance.</p>
       )}
-      <p className="mt-3 text-[11px] text-emerald-900">Distance is a straight-line estimate, not a safe-route guarantee. Capacity can change quickly.</p>
+      <p className="mt-3 text-xs text-emerald-900">Distance is a straight-line estimate, not a safe-route guarantee. Capacity can change quickly.</p>
     </section>
   );
 }

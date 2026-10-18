@@ -14,10 +14,10 @@ export function FieldResponsePanel({ incidentId }: { incidentId: string }) {
       <h3 className="flex items-center gap-2 text-sm font-semibold text-neutral-800"><CheckCircle2 size={16} /> Field response records</h3>
       {!!backup.data?.length && (
         <div className="mt-3 space-y-2">
-          <p className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-red-700"><LifeBuoy size={14} /> Backup requests</p>
+          <p className="flex items-center gap-2 text-xs font-semibold text-red-700"><LifeBuoy size={14} /> Backup requests</p>
           {backup.data.map((request) => (
             <div key={request.id} className="rounded-lg border border-red-200 bg-red-50 p-3 text-xs text-red-950">
-              <div className="flex flex-wrap justify-between gap-2"><strong>{request.reason}</strong><span className="uppercase">{request.status}</span></div>
+              <div className="flex flex-wrap justify-between gap-2"><strong>{request.reason}</strong><span className="">{request.status}</span></div>
               <p className="mt-1">Requested {formatDateTime(request.created_at)}{request.location_accuracy_m != null ? ` · GPS accuracy ±${Math.round(request.location_accuracy_m)} m` : ' · no GPS supplied'}</p>
             </div>
           ))}
@@ -25,7 +25,7 @@ export function FieldResponsePanel({ incidentId }: { incidentId: string }) {
       )}
       {!!reports.data?.length && (
         <div className="mt-4 space-y-3">
-          <p className="text-xs font-semibold uppercase tracking-wide text-green-700">Completion reports</p>
+          <p className="text-xs font-semibold text-green-700">Completion reports</p>
           {reports.data.map((report) => (
             <article key={report.id} className="rounded-lg border border-green-200 bg-green-50 p-3 text-xs text-green-950">
               <div className="flex flex-wrap items-center gap-x-4 gap-y-1">

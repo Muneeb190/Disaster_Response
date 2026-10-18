@@ -346,15 +346,15 @@ export function IncidentDetailPage() {
                       <div key={rec.team_id} className={`rounded-lg p-2.5 border ${i === 0 ? 'border-green-300 bg-green-50' : 'border-neutral-200 bg-neutral-50'}`}>
                         <div className="flex items-center justify-between mb-1">
                           <div className="flex items-center gap-2">
-                            {i === 0 && <span className="badge-success text-[10px]">Best match</span>}
+                            {i === 0 && <span className="badge-success text-xs">Best match</span>}
                             <span className="text-xs font-medium text-neutral-700">{rec.team_name}</span>
-                            <span className="text-[10px] text-neutral-400">{rec.team_code}</span>
+                            <span className="text-xs text-neutral-400">{rec.team_code}</span>
                           </div>
                           <span className="text-xs text-neutral-500">{rec.distance_km} km</span>
                         </div>
-                        <p className="text-[10px] text-neutral-500">{rec.recommendation_reason}</p>
-                        {rec.missing_equipment.length > 0 && <p className="text-[10px] font-medium text-red-600 mt-1">Missing equipment: {rec.missing_equipment.join(', ')}</p>}
-                        {rec.capacity_gap > 0 && <p className="text-[10px] font-medium text-amber-700">Capacity shortfall: {rec.capacity_gap} people</p>}
+                        <p className="text-xs text-neutral-500">{rec.recommendation_reason}</p>
+                        {rec.missing_equipment.length > 0 && <p className="text-xs font-medium text-red-600 mt-1">Missing equipment: {rec.missing_equipment.join(', ')}</p>}
+                        {rec.capacity_gap > 0 && <p className="text-xs font-medium text-amber-700">Capacity shortfall: {rec.capacity_gap} people</p>}
                       </div>
                     ))}
                     <TeamEtaPanel incident={inc} teams={teams.data ?? []} recommendations={recommendations.data} />

@@ -66,7 +66,7 @@ export function TeamStatusBadge({ status, className }: { status: TeamStatus; cla
 
 // Shown on any seeded/simulated record so demo data is never mistaken for live data.
 export function DemoBadge({ className }: { className?: string }) {
-  return <span className={cn('inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-bold tracking-wide bg-amber-100 text-amber-800 border border-amber-300', className)}>DEMO SCENARIO</span>;
+  return <span className={cn('inline-flex items-center rounded px-1.5 py-0.5 text-xs font-bold tracking-wide bg-amber-100 text-amber-800 border border-amber-300', className)}>DEMO SCENARIO</span>;
 }
 
 export function AssignmentStatusBadge({ status, className }: { status: AssignmentStatus; className?: string }) {

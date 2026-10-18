@@ -133,7 +133,7 @@ export function ResponderPage() {
       <main className="mx-auto max-w-5xl px-4 py-6 sm:px-6 sm:py-8">
         <Link to="/portal" className="mb-5 flex items-center gap-1 text-sm text-neutral-500"><ArrowLeft size={15} /> Workspaces</Link>
         <div>
-          <p className="text-xs font-semibold uppercase tracking-widest text-primary-600">Responder website</p>
+          <p className="text-xs font-semibold text-primary-600">Responder website</p>
           <h1 className="mt-1 text-2xl font-bold">My team assignments</h1>
           <p className="mt-1 text-sm text-neutral-500">Signed in as {auth.profile?.full_name}. Status taps request your browser location; continuous tracking is not used.</p>
         </div>
@@ -164,7 +164,7 @@ export function ResponderPage() {
 
                 <div className="mt-4 grid gap-3 md:grid-cols-2">
                   <div className="rounded-lg border border-red-100 bg-red-50 p-3">
-                    <h3 className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-red-800"><ShieldAlert size={14} /> Risks and vulnerable people</h3>
+                    <h3 className="flex items-center gap-2 text-xs font-semibold text-red-800"><ShieldAlert size={14} /> Risks and vulnerable people</h3>
                     <div className="mt-2 flex flex-wrap gap-1.5">
                       <TriStateBadge value={incident.people_trapped} label="Trapped" />
                       <TriStateBadge value={incident.injuries_reported} label="Injuries" />
@@ -174,7 +174,7 @@ export function ResponderPage() {
                     {incident.priority_reasons.length > 0 && <ul className="mt-2 list-disc space-y-1 pl-4 text-xs text-red-900">{incident.priority_reasons.map((reason) => <li key={reason}>{reason}</li>)}</ul>}
                   </div>
                   <div className="rounded-lg border border-blue-100 bg-blue-50 p-3">
-                    <h3 className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-blue-800"><PackageCheck size={14} /> Equipment</h3>
+                    <h3 className="flex items-center gap-2 text-xs font-semibold text-blue-800"><PackageCheck size={14} /> Equipment</h3>
                     <p className="mt-2 text-xs font-medium text-blue-900">Required for this incident</p>
                     <p className="mt-1 text-xs text-blue-900">{REQUIRED_EQUIPMENT[incident.type].join(' · ')}</p>
                     <p className="mt-2 text-xs font-medium text-blue-900">Team equipment</p>

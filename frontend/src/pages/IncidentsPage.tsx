@@ -156,7 +156,7 @@ export function IncidentsPage() {
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead className="bg-neutral-50 border-b border-neutral-200">
-                <tr className="text-left text-xs text-neutral-500 uppercase tracking-wide">
+                <tr className="text-left text-xs text-neutral-500">
                   <th className="px-4 py-3 font-medium">Report Code</th>
                   <th className="px-4 py-3 font-medium">Type</th>
                   <th className="px-4 py-3 font-medium">Priority &amp; why</th>
@@ -174,7 +174,7 @@ export function IncidentsPage() {
                   <tr key={inc.id} className="hover:bg-neutral-50 transition-colors cursor-pointer" onClick={() => navigate(`/incidents/${inc.id}`)}>
                     <td className="px-4 py-3">
                       <code className="text-xs font-bold text-primary-700">{inc.report_code}</code>
-                      {inc.primary_incident_id && <span className="block text-[10px] text-blue-600 mt-0.5">Combined source</span>}
+                      {inc.primary_incident_id && <span className="block text-xs text-blue-600 mt-0.5">Combined source</span>}
                     </td>
                     <td className="px-4 py-3 text-xs text-neutral-600">{INCIDENT_TYPE_LABELS[inc.type]}</td>
                     <td className="px-4 py-3 max-w-[260px]">
@@ -183,7 +183,7 @@ export function IncidentsPage() {
                         <span className="text-xs text-neutral-400">{inc.priority_score}</span>
                       </div>
                       {topReasons(inc.risk_factors).length > 0 && (
-                        <p className="text-[11px] text-neutral-500 mt-0.5 truncate">{topReasons(inc.risk_factors).join(' · ')}</p>
+                        <p className="text-xs text-neutral-500 mt-0.5 truncate">{topReasons(inc.risk_factors).join(' · ')}</p>
                       )}
                     </td>
                     <td className="px-4 py-3">

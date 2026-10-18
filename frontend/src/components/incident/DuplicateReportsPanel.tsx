@@ -65,21 +65,21 @@ export function DuplicateReportsPanel({ incident }: { incident: Incident }) {
   return <div className="card overflow-hidden">
     <div className="px-4 py-3 border-b border-neutral-200 flex items-center justify-between gap-3">
       <h3 className="text-sm font-semibold text-neutral-700 flex items-center gap-2"><Files size={15} /> Duplicate reports</h3>
-      {sources.length > 0 && <span className="badge-info text-[10px]">{sources.length + 1} reports combined</span>}
+      {sources.length > 0 && <span className="badge-info text-xs">{sources.length + 1} reports combined</span>}
     </div>
     <div className="p-4 space-y-4">
       {sources.length > 0 && <section><p className="text-xs font-semibold text-neutral-600 mb-2">Combined source reports ({sources.length})</p><div className="space-y-2">
         {sources.map((source) => <div key={source.id} className="rounded-lg border border-blue-100 bg-blue-50 p-3">
           <div className="flex flex-wrap items-start justify-between gap-2"><div><Link to={`/incidents/${source.id}`} className="text-xs font-bold text-primary-700 hover:underline">{source.report_code}</Link><p className="text-xs text-neutral-600 mt-1 line-clamp-2">{source.description}</p></div><button className="btn-ghost btn-sm" onClick={() => setConfirmUnlink({ id: source.id, code: source.report_code })}><Split size={13} /> Separate</button></div>
-          <p className="text-[10px] text-neutral-400 mt-2">Reported {timeAgo(source.created_at)}{source.area_landmark ? ` · ${source.area_landmark}` : ''}</p>
+          <p className="text-xs text-neutral-400 mt-2">Reported {timeAgo(source.created_at)}{source.area_landmark ? ` · ${source.area_landmark}` : ''}</p>
         </div>)}
       </div></section>}
       <section><p className="text-xs font-semibold text-neutral-600 mb-2">Possible duplicates</p>
         {candidates.isLoading ? <LoadingSpinner size={18} /> : suggestions.length ? <div className="space-y-2">{suggestions.map((candidate) => <div key={candidate.incident_id} className="rounded-lg border border-amber-200 bg-amber-50 p-3">
           <div className="flex flex-wrap items-start justify-between gap-3"><div className="min-w-0 flex-1">
-            <div className="flex flex-wrap items-center gap-2"><Link to={`/incidents/${candidate.incident_id}`} className="text-xs font-bold text-primary-700 hover:underline">{candidate.report_code}</Link><span className="badge-warning text-[10px]">{candidate.score}% match</span><PriorityBadge level={candidate.priority_level} /><StatusBadge status={candidate.status} /></div>
+            <div className="flex flex-wrap items-center gap-2"><Link to={`/incidents/${candidate.incident_id}`} className="text-xs font-bold text-primary-700 hover:underline">{candidate.report_code}</Link><span className="badge-warning text-xs">{candidate.score}% match</span><PriorityBadge level={candidate.priority_level} /><StatusBadge status={candidate.status} /></div>
             <p className="text-xs text-neutral-700 mt-2 line-clamp-2">{candidate.description}</p>
-            <div className="flex flex-wrap gap-3 mt-2 text-[10px] text-neutral-500"><span className="flex items-center gap-1"><MapPin size={11} /> {candidate.distance_m < 1000 ? `${candidate.distance_m} m` : `${(candidate.distance_m / 1000).toFixed(1)} km`} away</span><span className="flex items-center gap-1"><Clock size={11} /> {Math.round(candidate.time_difference_minutes / 60)}h apart</span><span>{Math.round(candidate.description_similarity * 100)}% text similarity</span></div>
+            <div className="flex flex-wrap gap-3 mt-2 text-xs text-neutral-500"><span className="flex items-center gap-1"><MapPin size={11} /> {candidate.distance_m < 1000 ? `${candidate.distance_m} m` : `${(candidate.distance_m / 1000).toFixed(1)} km`} away</span><span className="flex items-center gap-1"><Clock size={11} /> {Math.round(candidate.time_difference_minutes / 60)}h apart</span><span>{Math.round(candidate.description_similarity * 100)}% text similarity</span></div>
           </div><div className="flex shrink-0 flex-col gap-2"><button className="btn-primary btn-sm" onClick={() => setConfirmLink({ id: candidate.incident_id, code: candidate.report_code })}><Link2 size={13} /> Combine here</button><button className="btn-secondary btn-sm" onClick={() => setDismissCandidate({ id: candidate.incident_id, code: candidate.report_code })}><X size={13} /> Not a duplicate</button></div></div>
         </div>)}</div> : <p className="text-xs text-neutral-400">No likely duplicates found within 1 km and 24 hours.</p>}
       </section>

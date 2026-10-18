@@ -58,7 +58,7 @@ export function ActivityPage() {
       {logs.isLoading ? <Skeleton className="h-64 w-full" /> : logs.data?.length ? (
         <div className="card overflow-x-auto">
           <table className="w-full text-sm">
-            <thead className="bg-neutral-50 border-b border-neutral-200 text-left text-xs text-neutral-500 uppercase tracking-wide">
+            <thead className="bg-neutral-50 border-b border-neutral-200 text-left text-xs text-neutral-500">
               <tr><th className="px-4 py-3">When</th><th className="px-4 py-3">Who</th><th className="px-4 py-3">Action</th><th className="px-4 py-3">Details</th><th className="px-4 py-3">Reason</th></tr>
             </thead>
             <tbody className="divide-y divide-neutral-100">

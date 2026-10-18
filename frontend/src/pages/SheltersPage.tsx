@@ -75,7 +75,7 @@ export function SheltersPage() {
                     <div className="w-10 h-10 rounded-lg bg-teal-50 flex items-center justify-center shrink-0"><House size={20} className="text-teal-700" /></div>
                     <div className="min-w-0">
                       <p className="text-sm font-semibold text-neutral-800 truncate">{shelter.name}</p>
-                      <p className="text-[11px] text-neutral-400 truncate">{shelter.address || (pos ? `${pos[0].toFixed(3)}, ${pos[1].toFixed(3)}` : 'No location')}</p>
+                      <p className="text-xs text-neutral-400 truncate">{shelter.address || (pos ? `${pos[0].toFixed(3)}, ${pos[1].toFixed(3)}` : 'No location')}</p>
                     </div>
                   </div>
                   <div className="flex flex-col items-end gap-1"><span className={STATUS_STYLE[shelter.status]}>{shelter.status}</span>{shelter.is_demo && <DemoBadge />}</div>
@@ -86,7 +86,7 @@ export function SheltersPage() {
 
                 <div className="flex flex-wrap gap-1 mt-3">
                   {FACILITIES.map(([key, label]) => (
-                    <span key={key} className={shelter[key] === true ? 'badge-success text-[10px]' : shelter[key] === false ? 'badge-neutral text-[10px] line-through' : 'badge-neutral text-[10px] opacity-60'} title={shelter[key] === null ? 'Not confirmed' : undefined}>
+                    <span key={key} className={shelter[key] === true ? 'badge-success text-xs' : shelter[key] === false ? 'badge-neutral text-xs line-through' : 'badge-neutral text-xs opacity-60'} title={shelter[key] === null ? 'Not confirmed' : undefined}>
                       {label}{shelter[key] === null ? ' ?' : ''}
                     </span>
                   ))}
