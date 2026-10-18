@@ -125,7 +125,7 @@ export function ReportPage() {
 
   const applyVoiceResult = (result: VoiceTranscription) => {
     setVoiceResult(result);
-    setValue('description', result.transcript, { shouldValidate: true });
+    setValue('description', result.english_translation || result.transcript, { shouldValidate: true });
     setValue('type', result.incident_category);
     if (result.people_affected !== null) setValue('people_affected', result.people_affected);
     for (const field of ['people_trapped', 'injuries_reported', 'vulnerable_people', 'danger_increasing'] as const) {
@@ -281,9 +281,9 @@ export function ReportPage() {
         followup_answer: asked?.answer ?? null,
         followup_skipped: asked !== null && asked.answer === null,
         input_mode: voiceResult ? 'voice' : 'text',
-        voice_transcript: voiceResult?.transcript ?? null,
+        voice_transcript: voiceResult ? (voiceResult.english_translation || voiceResult.transcript) : null,
         transcript_language: voiceResult?.language ?? null,
-        transcript_english: voiceResult?.english_translation ?? null,
+        transcript_english: voiceResult ? (voiceResult.english_translation || voiceResult.transcript) : null,
       });
       setSubmittedCode(incident.report_code);
       setSubmittedToken(incident.tracking_token);
@@ -440,9 +440,9 @@ export function ReportPage() {
               {voiceError && <p className="mt-2 text-xs text-error">{voiceError}</p>}
               {voiceResult && (
                 <div className="mt-3 border-t border-neutral-200 pt-3">
-                  <p className="mb-1 text-xs font-medium text-neutral-500">Original transcript</p>
-                  <TranscriptText text={voiceResult.transcript} language={voiceResult.language} className="text-sm text-neutral-800" />
-                  {voiceResult.language !== 'en' && <p className="mt-2 text-xs text-neutral-500">The editable description below keeps your original words. Coordinators will also receive an English translation.</p>}
+                  <p className="mb-1 text-xs font-medium text-neutral-500">English transcript</p>
+                  <TranscriptText text={voiceResult.english_translation || voiceResult.transcript} language="en" className="text-sm text-neutral-800" />
+                  {voiceResult.language !== 'en' && <p className="mt-2 text-xs text-neutral-500">The spoken report was translated into English.</p>}
                 </div>
               )}
             </div>

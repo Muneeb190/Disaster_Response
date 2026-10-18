@@ -22,7 +22,12 @@ export function isRecordingSupported() {
 }
 
 export async function startRecording(onAutoStop: () => void): Promise<Recording> {
-  const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } });
+  const stream = await navigator.mediaDevices.getUserMedia({ audio: {
+    echoCancellation: true,
+    noiseSuppression: true,
+    autoGainControl: true,
+    channelCount: 1,
+  } });
   const recorder = new MediaRecorder(stream);
   const chunks: Blob[] = [];
   recorder.ondataavailable = (e) => { if (e.data.size > 0) chunks.push(e.data); };
@@ -56,8 +61,20 @@ export async function toWavBase64(blob: Blob): Promise<string> {
     const decoded = await ctx.decodeAudioData(await blob.arrayBuffer());
     const offline = new OfflineAudioContext(1, Math.max(1, Math.ceil(decoded.duration * SAMPLE_RATE)), SAMPLE_RATE);
     const source = offline.createBufferSource();
+    const highPass = offline.createBiquadFilter();
+    highPass.type = 'highpass';
+    highPass.frequency.value = 90;
+    highPass.Q.value = 0.7;
+    const compressor = offline.createDynamicsCompressor();
+    compressor.threshold.value = -28;
+    compressor.knee.value = 18;
+    compressor.ratio.value = 4;
+    compressor.attack.value = 0.004;
+    compressor.release.value = 0.2;
     source.buffer = decoded;
-    source.connect(offline.destination);
+    source.connect(highPass);
+    highPass.connect(compressor);
+    compressor.connect(offline.destination);
     source.start();
     const rendered = await offline.startRendering();
     return bytesToBase64(encodeWav(rendered.getChannelData(0)));

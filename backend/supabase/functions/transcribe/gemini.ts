@@ -5,7 +5,7 @@ export type TriState = "yes" | "no" | "unknown";
 
 export interface TranscriptionResult {
   language: Language;
-  transcript: string; // exactly as spoken, in the speaker's own script
+  transcript: string; // one faithful English transcript, translated when necessary
   english_translation: string;
   summary: string;
   incident_category: "flood" | "fire" | "medical_emergency" | "heatwave" | "other";
@@ -55,14 +55,15 @@ export const RESPONSE_SCHEMA = {
 
 export const PROMPT = `This audio is an emergency report from a member of the public during a disaster in Pakistan. They may speak English, Urdu, or a mix of both.
 
-1. transcript: write down exactly what was said, word for word, in the language and script it was spoken.
-   - Urdu must be written in Urdu script (اردو), never in Roman Urdu or English letters.
-   - English must be written in English.
-   - If the speaker mixes the two, keep each part in its own script.
-   - Do not translate, summarise, correct or add anything. Leave out filler sounds only.
+Listen only to the nearest, clearest person intentionally making the report. Ignore television, radio, traffic, conversations, echoes, and distant or overlapping background voices. Never merge background speech into the report. If the main speaker's words are unclear, omit them rather than guessing.
+
+1. transcript: return one faithful English transcript only.
+   - Translate Urdu and mixed Urdu/English speech into natural, precise English.
+   - Preserve names, place names, numbers, urgency, uncertainty, and negation.
+   - Do not summarise, correct facts, infer missing details, or add anything. Leave out filler sounds only.
    - If there is no clear speech, return an empty transcript.
 2. language: "en" for English, "ur" for Urdu, "mixed" for both, "other" for anything else.
-3. english_translation: a faithful English translation of the transcript (the same text if it is already English).
+3. english_translation: repeat the same English text as transcript for compatibility.
 4. summary: one short plain-English sentence a rescue coordinator can read in two seconds.
 5. The other fields: only what the speaker said or clearly implied. Use "unknown" or null when they did not say.
    Never guess: unknown is safer. immediate_needs are short English words such as rescue, boat, medical, ambulance, evacuation, water, food, shelter.
@@ -114,16 +115,15 @@ export function parseResponse(body: unknown, model: string): TranscriptionResult
   if (!text) throw new Error(`Gemini returned an empty response (${first.finishReason ?? "unknown reason"})`);
 
   const raw = JSON.parse(text) as Record<string, unknown>;
-  const transcript = typeof raw.transcript === "string" ? raw.transcript.trim() : "";
-  const script = detectScript(transcript);
+  const generatedTranscript = typeof raw.transcript === "string" ? raw.transcript.trim() : "";
   const labelled = raw.language as Language;
-  // Trust the script we can see over the label when they disagree.
-  const language: Language = transcript && (["en", "ur", "mixed", "other"] as const).includes(labelled) && (labelled === script || script === "other")
-    ? labelled
-    : transcript ? script : "other";
+  const language: Language = (["en", "ur", "mixed", "other"] as const).includes(labelled) ? labelled : "other";
   const english = typeof raw.english_translation === "string" && raw.english_translation.trim()
     ? raw.english_translation.trim()
-    : language === "en" ? transcript : "";
+    : generatedTranscript;
+  // Normalize both compatibility fields to English so non-English transcripts
+  // are never exposed or persisted by new reports.
+  const transcript = english;
 
   const tri = (k: string): TriState => (isTri(raw[k]) ? raw[k] as TriState : "unknown");
   const people = Number.isInteger(raw.people_affected) && (raw.people_affected as number) >= 0 && (raw.people_affected as number) < 100000
