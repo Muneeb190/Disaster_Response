@@ -55,12 +55,13 @@ export const RESPONSE_SCHEMA = {
 
 export const PROMPT = `This audio is an emergency report from a member of the public during a disaster in Pakistan. They may speak English, Urdu, or a mix of both.
 
-Listen only to the nearest, clearest person intentionally making the report. Ignore television, radio, traffic, conversations, echoes, and distant or overlapping background voices. Never merge background speech into the report. If the main speaker's words are unclear, omit them rather than guessing.
+Listen only to the nearest, clearest person intentionally making the report. Ignore television, radio, traffic, conversations, echoes, and distant or overlapping background voices. Never merge background speech into the report.
 
 1. transcript: return one faithful English transcript only.
    - Translate Urdu and mixed Urdu/English speech into natural, precise English.
    - Preserve names, place names, numbers, urgency, uncertainty, and negation.
    - Do not summarise, correct facts, infer missing details, or add anything. Leave out filler sounds only.
+   - If a word cannot be heard reliably, write [unclear] at that exact position. Never guess or silently invent it.
    - If there is no clear speech, return an empty transcript.
 2. language: "en" for English, "ur" for Urdu, "mixed" for both, "other" for anything else.
 3. english_translation: repeat the same English text as transcript for compatibility.

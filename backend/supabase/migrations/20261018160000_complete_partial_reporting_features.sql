@@ -2,6 +2,7 @@
 
 alter table public.voice_recordings
   add column if not exists analysis jsonb;
+
 alter table public.incidents
   add column if not exists calculated_priority_score int,
   add column if not exists calculated_priority_level public.priority_level,
@@ -9,6 +10,7 @@ alter table public.incidents
   add column if not exists priority_override_reason text,
   add column if not exists priority_override_by uuid references public.profiles(id) on delete set null,
   add column if not exists priority_override_at timestamptz;
+
 -- If the background transcription won the race and completed before submission,
 -- enrich the new report before its risk/confidence trigger evaluates it.
 create or replace function private.enrich_new_incident_from_voice()
@@ -38,6 +40,7 @@ $$;
 drop trigger if exists trg_00_enrich_new_incident_from_voice on public.incidents;
 create trigger trg_00_enrich_new_incident_from_voice
 before insert on public.incidents for each row execute function private.enrich_new_incident_from_voice();
+
 -- Preserve the calculated result for transparency, while an explicit human
 -- override controls the operational level and queue position until cleared.
 create or replace function private.incident_assess_before_write()
@@ -73,8 +76,10 @@ begin
   return new;
 end;
 $$;
+
 update public.incidents set updated_at = updated_at
 where calculated_priority_score is null;
+
 create or replace function public.admin_override_incident_priority(
   p_incident_id uuid,
   p_level public.priority_level,
@@ -102,6 +107,7 @@ begin
   return after_row;
 end;
 $$;
+
 create or replace function public.dismiss_duplicate_suggestion(
   p_incident_id uuid,
   p_candidate_id uuid,
@@ -120,10 +126,12 @@ begin
     jsonb_build_object('candidate_incident_id', p_candidate_id), trim(p_reason));
 end;
 $$;
+
 revoke execute on function public.admin_override_incident_priority(uuid, public.priority_level, text) from public, anon;
 revoke execute on function public.dismiss_duplicate_suggestion(uuid, uuid, text) from public, anon;
 grant execute on function public.admin_override_incident_priority(uuid, public.priority_level, text) to authenticated;
 grant execute on function public.dismiss_duplicate_suggestion(uuid, uuid, text) to authenticated;
+
 create or replace function public.append_public_incident_details(
   p_report_code text,
   p_tracking_token text,

@@ -1,17 +1,16 @@
-import { useEffect, useRef, useState } from 'react';
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { Radio, ArrowLeft, ArrowRight, Check, Copy, MapPin, LocateFixed, Sparkles, AlertCircle, Search, MessageCircleQuestion, Mic, Square, Trash2 } from 'lucide-react';
+import { Radio, ArrowLeft, ArrowRight, Check, Copy, MapPin, Sparkles, AlertCircle, Search, MessageCircleQuestion, ChevronDown } from 'lucide-react';
 import { LocationPicker } from '@/components/map/IncidentMap';
 import { useCreateIncident } from '@/hooks/useData';
 import { useToast } from '@/components/ui/toast-context';
 import { LoadingSpinner } from '@/components/ui/States';
 import { Modal } from '@/components/ui/Modal';
 import { pickFollowupQuestion, type FollowupQuestion } from '@/lib/followup';
-import { isRecordingSupported, startRecording, toWavBase64, type Recording } from '@/lib/voiceRecorder';
-import { TranscriptText } from '@/components/incident/TranscriptText';
+import { VoiceRecorder } from '@/components/VoiceRecorder';
 import { reverseGeocode } from '@/lib/geocoding';
 import type { IncidentType, TriState, VoiceTranscription } from '@/types';
 
@@ -35,7 +34,7 @@ const incidentTypes: { value: IncidentType; label: string; icon: string }[] = [
   { value: 'fire', label: 'Fire', icon: '🔥' },
   { value: 'medical_emergency', label: 'Medical Emergency', icon: '🚑' },
   { value: 'heatwave', label: 'Heatwave', icon: '🌡' },
-  { value: 'other', label: 'Other', icon: '⚠' },
+  { value: 'other', label: 'Accident / Other', icon: '⚠' },
 ];
 
 const triStateOptions: { value: TriState; label: string }[] = [
@@ -49,7 +48,6 @@ export function ReportPage() {
   const createIncident = useCreateIncident();
   const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [locationName, setLocationName] = useState('');
-  const [locating, setLocating] = useState(false);
   const [submittedCode, setSubmittedCode] = useState<string | null>(null);
   const [submittedToken, setSubmittedToken] = useState<string | null>(null);
   const [aiExtracting, setAiExtracting] = useState(false);
@@ -57,13 +55,10 @@ export function ReportPage() {
   const [aiResults, setAiResults] = useState<Record<string, unknown> | null>(null);
   // Feature 12: at most one follow-up question, always skippable.
   const [followup, setFollowup] = useState<{ q: FollowupQuestion; data: FormData } | null>(null);
-  const [recording, setRecording] = useState(false);
-  const [recordingSeconds, setRecordingSeconds] = useState(0);
-  const [transcribing, setTranscribing] = useState(false);
   const [voiceResult, setVoiceResult] = useState<VoiceTranscription | null>(null);
-  const [voiceError, setVoiceError] = useState<string | null>(null);
-  const recordingRef = useRef<Recording | null>(null);
-  const stoppingRef = useRef(false);
+  const [voiceRecordingId, setVoiceRecordingId] = useState<string | null>(null);
+  const [voiceUploading, setVoiceUploading] = useState(false);
+  const [moreDetails, setMoreDetails] = useState(false);
 
   const {
     register,
@@ -96,33 +91,6 @@ export function ReportPage() {
       setLocationName('Selected location');
     }
   };
-
-  const useCurrentLocation = () => {
-    if (!navigator.geolocation) {
-      toast('Location is not supported by this browser', 'error');
-      return;
-    }
-    setLocating(true);
-    navigator.geolocation.getCurrentPosition(
-      ({ coords: current }) => {
-        void selectLocation(current.latitude, current.longitude).finally(() => setLocating(false));
-      },
-      (error) => {
-        setLocating(false);
-        toast(error.code === error.PERMISSION_DENIED ? 'Allow location access and try again' : 'Could not get your current location', 'error');
-      },
-      { enableHighAccuracy: true, timeout: 12000, maximumAge: 15000 },
-    );
-  };
-
-  useEffect(() => {
-    if (!recording) return;
-    const timer = window.setInterval(() => setRecordingSeconds((s) => s + 1), 1000);
-    return () => window.clearInterval(timer);
-  }, [recording]);
-
-  useEffect(() => () => recordingRef.current?.cancel(), []);
-
   const applyVoiceResult = (result: VoiceTranscription) => {
     setVoiceResult(result);
     setValue('description', result.english_translation || result.transcript, { shouldValidate: true });
@@ -134,59 +102,9 @@ export function ReportPage() {
     setAiResults(result as unknown as Record<string, unknown>);
   };
 
-  const finishRecording = async () => {
-    if (!recordingRef.current || stoppingRef.current) return;
-    stoppingRef.current = true;
-    const current = recordingRef.current;
-    recordingRef.current = null;
-    setRecording(false);
-    setTranscribing(true);
-    setVoiceError(null);
-    try {
-      const blob = await current.stop();
-      const audio = await toWavBase64(blob);
-      const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/transcribe`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY || import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
-        },
-        body: JSON.stringify({ audio_base64: audio, mime_type: 'audio/wav' }),
-      });
-      const result = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(result.error || `Transcription failed (${res.status})`);
-      applyVoiceResult(result as VoiceTranscription);
-      toast('Voice report transcribed. Please review it before submitting.', 'success');
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Could not transcribe the recording';
-      setVoiceError(message);
-      toast(message, 'error');
-    } finally {
-      stoppingRef.current = false;
-      setTranscribing(false);
-    }
-  };
-
-  const beginRecording = async () => {
-    setVoiceError(null);
-    setVoiceResult(null);
-    setRecordingSeconds(0);
-    try {
-      recordingRef.current = await startRecording(() => void finishRecording());
-      setRecording(true);
-    } catch (err) {
-      setVoiceError(err instanceof Error && err.name === 'NotAllowedError'
-        ? 'Microphone permission was denied. Allow microphone access or type your report.'
-        : 'Could not access the microphone. You can still type your report.');
-    }
-  };
-
-  const removeVoice = () => {
-    recordingRef.current?.cancel();
-    recordingRef.current = null;
-    setRecording(false);
-    setVoiceResult(null);
-    setVoiceError(null);
+  const handleVoiceTranscript = (transcript: string, analysis?: VoiceTranscription | null) => {
+    if (analysis) applyVoiceResult(analysis);
+    else setValue('description', transcript, { shouldValidate: true });
   };
 
   const handleAiExtract = async () => {
@@ -284,9 +202,11 @@ export function ReportPage() {
         voice_transcript: voiceResult ? (voiceResult.english_translation || voiceResult.transcript) : null,
         transcript_language: voiceResult?.language ?? null,
         transcript_english: voiceResult ? (voiceResult.english_translation || voiceResult.transcript) : null,
+        voice_recording_id: voiceRecordingId,
       });
       setSubmittedCode(incident.report_code);
       setSubmittedToken(incident.tracking_token);
+      sessionStorage.setItem(`resqnet_tracking_${incident.report_code}`, incident.tracking_token);
       toast('Emergency report submitted successfully', 'success');
     } catch (err) {
       toast(err instanceof Error ? err.message : 'Failed to submit report', 'error');
@@ -342,9 +262,9 @@ export function ReportPage() {
           </div>
 
           <div className="flex flex-col sm:flex-row gap-3 justify-center">
-            <Link to="/status" className="btn-secondary">
+            <Link to={`/status?code=${encodeURIComponent(submittedCode)}`} className="btn-secondary">
               <Search size={18} />
-              Check Status
+              Check status / add details
             </Link>
             <Link to="/" className="btn-ghost">
               <ArrowLeft size={18} />
@@ -421,31 +341,18 @@ export function ReportPage() {
                 AI Assist
               </button>
             </div>
-            <div className="mb-3 rounded-lg border border-neutral-200 bg-neutral-50 p-3">
-              <div className="flex flex-wrap items-center gap-2">
-                {!recording ? (
-                  <button type="button" className="btn-secondary btn-sm" onClick={() => void beginRecording()} disabled={transcribing || !isRecordingSupported()}>
-                    {transcribing ? <LoadingSpinner size={14} /> : <Mic size={14} />}
-                    {transcribing ? 'Transcribing…' : voiceResult ? 'Record again' : 'Speak in English or Urdu'}
-                  </button>
-                ) : (
-                  <button type="button" className="btn-danger btn-sm" onClick={() => void finishRecording()}>
-                    <Square size={13} /> Stop recording
-                  </button>
-                )}
-                {recording && <span className="text-xs font-medium text-red-600">Recording {Math.floor(recordingSeconds / 60)}:{String(recordingSeconds % 60).padStart(2, '0')} / 2:00</span>}
-                {voiceResult && <button type="button" className="btn-ghost btn-sm ml-auto" onClick={removeVoice}><Trash2 size={14} /> Remove voice</button>}
-              </div>
-              {!isRecordingSupported() && <p className="mt-2 text-xs text-neutral-500">Voice recording is not supported in this browser. Please type your report.</p>}
-              {voiceError && <p className="mt-2 text-xs text-error">{voiceError}</p>}
-              {voiceResult && (
-                <div className="mt-3 border-t border-neutral-200 pt-3">
-                  <p className="mb-1 text-xs font-medium text-neutral-500">English transcript</p>
-                  <TranscriptText text={voiceResult.english_translation || voiceResult.transcript} language="en" className="text-sm text-neutral-800" />
-                  {voiceResult.language !== 'en' && <p className="mt-2 text-xs text-neutral-500">The spoken report was translated into English.</p>}
-                </div>
-              )}
-            </div>
+            <VoiceRecorder
+              description={description ?? ''}
+              onTranscript={handleVoiceTranscript}
+              onRecordingId={(id) => {
+                setVoiceRecordingId(id);
+                if (id && (!description || description.trim().length < 10)) {
+                  setValue('description', 'Voice emergency report — transcription is still processing.', { shouldValidate: true });
+                }
+              }}
+              onUploadingChange={setVoiceUploading}
+              onLocalAudioSaved={() => toast('Audio was saved on this device only. It has not reached rescuers.', 'warning')}
+            />
             <textarea
               {...register('description')}
               rows={4}
@@ -461,21 +368,25 @@ export function ReportPage() {
             )}
             {aiResults && (
               <div className="mt-2 text-xs text-neutral-600 bg-blue-50 rounded-lg p-3 border border-blue-100">
-                <p className="font-medium text-blue-700 mb-1">AI Extracted (review and confirm):</p>
-                <pre className="whitespace-pre-wrap text-xs">{JSON.stringify(aiResults, null, 2)}</pre>
+                <p className="font-medium text-blue-700 mb-2">AI understanding — review before sending</p>
+                {typeof aiResults.summary === 'string' && aiResults.summary && <p className="mb-2">{aiResults.summary}</p>}
+                {Array.isArray(aiResults.immediate_needs) && aiResults.immediate_needs.length > 0 && <p><strong>Immediate needs:</strong> {aiResults.immediate_needs.join(', ')}</p>}
+                {Array.isArray(aiResults.uncertainties) && aiResults.uncertainties.length > 0 && (
+                  <div className="mt-2 rounded border border-amber-200 bg-amber-50 p-2 text-amber-900">
+                    <strong>Still uncertain:</strong>
+                    <ul className="mt-1 list-disc pl-4">{aiResults.uncertainties.map((item) => <li key={String(item)}>{String(item)}</li>)}</ul>
+                  </div>
+                )}
               </div>
             )}
           </div>
 
           {/* Location */}
           <div className="card card-body">
-            <div className="flex items-center justify-between gap-3 mb-2">
-              <label className="label mb-0">Location <span className="text-error">*</span> — <span className="text-neutral-400 font-normal">Tap the map or use your phone location</span></label>
-              <button type="button" className="btn-primary btn-sm shrink-0" onClick={useCurrentLocation} disabled={locating}>
-                {locating ? <LoadingSpinner size={14} /> : <LocateFixed size={14} />} {locating ? 'Locating…' : 'Use my location'}
-              </button>
-            </div>
-            <LocationPicker onPick={(lat, lng) => void selectLocation(lat, lng)} initialPos={coords ? [coords.lat, coords.lng] : undefined} />
+            <label className="label">
+              Location <span className="text-error">*</span> — <span className="text-neutral-400 font-normal">Detected automatically; tap or drag the pin to correct it</span>
+            </label>
+            <LocationPicker onPick={(lat, lng) => void selectLocation(lat, lng)} />
             {coords && (
               <div className="mt-2 flex items-center gap-2 text-xs text-green-700">
                 <MapPin size={14} />
@@ -484,6 +395,12 @@ export function ReportPage() {
             )}
           </div>
 
+          <button type="button" className="card card-body w-full flex-row items-center justify-between text-left" onClick={() => setMoreDetails((value) => !value)} aria-expanded={moreDetails}>
+            <span><strong>Add helpful details</strong><span className="block text-xs font-normal text-neutral-500">Optional — send the basic report immediately if you are in danger</span></span>
+            <ChevronDown size={18} className={`transition-transform ${moreDetails ? 'rotate-180' : ''}`} />
+          </button>
+
+          {moreDetails && <>
           {/* Details */}
           <div className="card card-body space-y-4">
             <div>
@@ -525,20 +442,21 @@ export function ReportPage() {
             </div>
             <p className="text-xs text-neutral-400 mt-2">Your contact information is protected and only visible to coordinators.</p>
           </div>
+          </>}
 
           {/* Submit */}
           <div className="flex items-center justify-between gap-4">
             <Link to="/" className="btn-ghost">
               <ArrowLeft size={18} /> Cancel
             </Link>
-            <button type="submit" className="btn-primary btn-lg" disabled={createIncident.isPending}>
+            <button type="submit" className="btn-primary btn-lg" disabled={createIncident.isPending || voiceUploading}>
               {createIncident.isPending ? (
                 <>
                   <LoadingSpinner size={18} /> Submitting...
                 </>
               ) : (
                 <>
-                  Submit Report <ArrowRight size={18} />
+                  {voiceUploading ? 'Attaching audio…' : 'Send Emergency Report'} <ArrowRight size={18} />
                 </>
               )}
             </button>

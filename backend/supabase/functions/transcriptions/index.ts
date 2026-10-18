@@ -7,18 +7,27 @@ const corsHeaders = {
 };
 
 const BUCKET = "voice-recordings";
-const MAX_AUDIO_BYTES = 10 * 1024 * 1024;
+const MAX_AUDIO_BYTES = 6 * 1024 * 1024;
 const LANGUAGE_CODES = ["ur-PK", "en-US"] as const;
 
 type LanguageCode = typeof LANGUAGE_CODES[number];
 
-interface GeminiResponse {
-  candidates?: Array<{
-    content?: {
-      parts?: Array<{ text?: string }>;
-    };
-  }>;
-  error?: { message?: string };
+interface VoiceAnalysis {
+  language: "en" | "ur" | "mixed" | "other";
+  transcript: string;
+  english_translation: string;
+  summary: string;
+  incident_category: "flood" | "fire" | "medical_emergency" | "heatwave" | "other";
+  people_affected: number | null;
+  people_trapped: "yes" | "no" | "unknown";
+  injuries_reported: "yes" | "no" | "unknown";
+  vulnerable_people: "yes" | "no" | "unknown";
+  danger_increasing: "yes" | "no" | "unknown";
+  injury_details: string | null;
+  immediate_needs: string[];
+  uncertainties: string[];
+  source: "gemini";
+  model: string;
 }
 
 function jsonResponse(body: unknown, status = 200): Response {
@@ -49,58 +58,80 @@ function bytesToBase64(bytes: Uint8Array): string {
 async function processTranscription(
   recordingId: string,
   storagePath: string,
-  language: LanguageCode,
   mimeType: string,
-  apiKey: string,
 ): Promise<void> {
   const client = serviceClient();
   try {
     const { data: audioFile, error: downloadError } = await client.storage.from(BUCKET).download(storagePath);
     if (downloadError || !audioFile) throw new Error("Could not retrieve the stored recording");
 
-    const expectedLanguage = language === "ur-PK" ? "Urdu (Pakistan)" : "English";
     const audio = bytesToBase64(new Uint8Array(await audioFile.arrayBuffer()));
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const response = await fetch(
-      "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent",
+      `${supabaseUrl}/functions/v1/transcribe`,
       {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "x-goog-api-key": apiKey,
+          "Authorization": `Bearer ${serviceRoleKey}`,
+          "apikey": serviceRoleKey,
         },
         signal: AbortSignal.timeout(60_000),
-        body: JSON.stringify({
-          contents: [{
-            parts: [
-              {
-                text: `Transcribe the entire recording verbatim in ${expectedLanguage}. Preserve the spoken language and original script. Do not translate, summarize, add speaker labels, or include anything except the transcript. If no intelligible speech is present, return an empty response.`,
-              },
-              { inlineData: { mimeType, data: audio } },
-            ],
-          }],
-          generationConfig: { temperature: 0 },
-        }),
+        body: JSON.stringify({ audio_base64: audio, mime_type: mimeType }),
       },
     );
 
-    const result = await response.json() as GeminiResponse;
+    const result = await response.json() as VoiceAnalysis & { error?: string };
     if (!response.ok) {
-      throw new Error(result.error?.message || `Gemini speech-to-text returned ${response.status}`);
+      throw new Error(result.error || `Voice transcription returned ${response.status}`);
     }
-
-    const transcript = (result.candidates?.[0]?.content?.parts || [])
-      .map((part) => part.text || "")
-      .join("")
-      .trim();
     const { error: updateError } = await client.from("voice_recordings").update({
       transcription_status: "ready",
-      transcript: transcript || null,
-      transcript_language: language,
+      transcript: result.transcript || null,
+      transcript_language: result.language,
       transcript_confidence: null,
+      analysis: result,
       transcription_error: null,
       updated_at: new Date().toISOString(),
     }).eq("id", recordingId);
     if (updateError) throw updateError;
+
+    // The incident may already have been sent while transcription was running.
+    // Preserve known reporter answers, but fill unknown facts and the transcript.
+    const { data: pendingIncidents, error: pendingError } = await client.from("incidents")
+      .select("id, description, people_affected, people_trapped, injuries_reported, vulnerable_people, danger_increasing, ai_extracted")
+      .eq("voice_recording_id", recordingId);
+    if (pendingError) throw pendingError;
+    for (const incident of pendingIncidents || []) {
+      const placeholder = incident.description.startsWith("Voice emergency report");
+      const { error: incidentError } = await client.from("incidents").update({
+        ...(placeholder ? {
+          description: result.transcript,
+          type: result.incident_category,
+          people_affected: result.people_affected ?? incident.people_affected,
+          people_trapped: incident.people_trapped === "unknown" ? result.people_trapped : incident.people_trapped,
+          injuries_reported: incident.injuries_reported === "unknown" ? result.injuries_reported : incident.injuries_reported,
+          vulnerable_people: incident.vulnerable_people === "unknown" ? result.vulnerable_people : incident.vulnerable_people,
+          danger_increasing: incident.danger_increasing === "unknown" ? result.danger_increasing : incident.danger_increasing,
+        } : {}),
+        voice_transcript: result.transcript,
+        transcript_language: result.language,
+        transcript_english: result.english_translation,
+        ai_extracted: { ...((incident.ai_extracted as Record<string, unknown> | null) ?? {}), ...result },
+        updated_at: new Date().toISOString(),
+      }).eq("id", incident.id);
+      if (incidentError) throw incidentError;
+      await client.from("audit_logs").insert({
+        actor: "system",
+        actor_role: "system",
+        action: "voice_transcription_completed",
+        entity_type: "incident",
+        entity_id: incident.id,
+        new_values: { language: result.language, uncertainties: result.uncertainties },
+        reason: "Background voice transcription and extraction completed",
+      });
+    }
   } catch (error) {
     const message = error instanceof Error ? error.message : "Speech-to-text failed";
     const { error: updateError } = await client.from("voice_recordings").update({
@@ -121,9 +152,6 @@ Deno.serve(async (req: Request) => {
     const contentType = req.headers.get("content-type") || "";
 
     if (contentType.includes("multipart/form-data")) {
-      const apiKey = Deno.env.get("GEMINI_API_KEY");
-      if (!apiKey) return jsonResponse({ error: "Gemini speech-to-text is not configured on the server" }, 503);
-
       const form = await req.formData();
       const audio = form.get("audio");
       const language = form.get("language");
@@ -131,7 +159,7 @@ Deno.serve(async (req: Request) => {
         return jsonResponse({ error: "An audio recording is required" }, 400);
       }
       if (audio.size > MAX_AUDIO_BYTES) {
-        return jsonResponse({ error: "Audio must be 10 MB or smaller" }, 413);
+        return jsonResponse({ error: "Audio must be 6 MB or smaller" }, 413);
       }
       const mimeType = audio.type.split(";")[0].toLowerCase();
       if (mimeType !== "audio/webm" && mimeType !== "audio/ogg") {
@@ -161,7 +189,7 @@ Deno.serve(async (req: Request) => {
       }
 
       EdgeRuntime.waitUntil(
-        processTranscription(recordingId, storagePath, language as LanguageCode, mimeType, apiKey),
+        processTranscription(recordingId, storagePath, mimeType),
       );
       return jsonResponse({ recordingId, status: "transcribing" }, 202);
     }
@@ -171,7 +199,7 @@ Deno.serve(async (req: Request) => {
       return jsonResponse({ error: "A valid recording reference is required" }, 400);
     }
     const { data, error } = await client.from("voice_recordings")
-      .select("id, transcription_status, transcript, transcript_language, transcript_confidence, transcription_error")
+      .select("id, transcription_status, transcript, transcript_language, transcript_confidence, transcription_error, analysis")
       .eq("id", body.recordingId)
       .maybeSingle();
     if (error) throw error;
@@ -183,6 +211,7 @@ Deno.serve(async (req: Request) => {
       transcript: data.transcript,
       language: data.transcript_language,
       confidence: data.transcript_confidence,
+      analysis: data.analysis,
       error: data.transcription_error,
     });
   } catch (error) {

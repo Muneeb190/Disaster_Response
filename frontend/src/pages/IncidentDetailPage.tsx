@@ -15,10 +15,10 @@ import { Skeleton, EmptyState, LoadingSpinner, ErrorState } from '@/components/u
 import { useToast } from '@/components/ui/toast-context';
 import {
   useIncident, useUpdateIncident, useRecalculatePriority, useTeamRecommendations,
-  useTeams, useResources, useCreateAssignment, useAssignmentsForIncident, useSetAssignmentStatus,
+  useTeams, useResources, useCreateAssignment, useAssignmentsForIncident, useSetAssignmentStatus, useOverrideIncidentPriority,
 } from '@/hooks/useData';
 import { parseLocation, INCIDENT_TYPE_LABELS, STATUS_LABELS, VERIFICATION_LABELS } from '@/types';
-import type { Incident, IncidentStatus, IncidentType, TriState, VerificationStatus } from '@/types';
+import type { Incident, IncidentStatus, IncidentType, PriorityLevel, TriState, VerificationStatus } from '@/types';
 import { formatDateTime, timeAgo } from '@/lib/utils';
 import { TranscriptText } from '@/components/incident/TranscriptText';
 import { DuplicateReportsPanel } from '@/components/incident/DuplicateReportsPanel';
@@ -36,6 +36,7 @@ export function IncidentDetailPage() {
   const assignments = useAssignmentsForIncident(id!);
   const updateIncident = useUpdateIncident();
   const recalcPriority = useRecalculatePriority();
+  const overridePriority = useOverrideIncidentPriority();
   const createAssignment = useCreateAssignment();
   const setAssignmentStatus = useSetAssignmentStatus();
 
@@ -50,6 +51,7 @@ export function IncidentDetailPage() {
   const [statusChange, setStatusChange] = useState<IncidentStatus | null>(null);
   const [verifyChange, setVerifyChange] = useState<VerificationStatus | null>(null);
   const [factsModal, setFactsModal] = useState(false);
+  const [priorityModal, setPriorityModal] = useState(false);
 
   if (incident.isLoading) {
     return <DashboardLayout title="Loading incident..."><Skeleton className="h-96 w-full" /></DashboardLayout>;
@@ -106,6 +108,14 @@ export function IncidentDetailPage() {
       if (updated.priority_score > inc.priority_score) toast(`Facts updated — priority rose to ${updated.priority_level} (${updated.priority_score})`, 'warning');
       else toast(`Facts updated — priority ${updated.priority_level} (${updated.priority_score})`, 'success');
     } catch (err) { toast(errorMessage(err, 'Failed to update facts'), 'error'); }
+  };
+
+  const handlePriorityOverride = async (level: PriorityLevel | null, reason: string) => {
+    try {
+      await overridePriority.mutateAsync({ incidentId: inc.id, level, reason });
+      setPriorityModal(false);
+      toast(level ? `Priority overridden to ${level}` : 'Priority override cleared; calculated priority restored', 'success');
+    } catch (err) { toast(errorMessage(err, 'Failed to change priority'), 'error'); }
   };
 
   const handleAssign = async () => {
@@ -185,6 +195,9 @@ export function IncidentDetailPage() {
               <button className="btn-secondary btn-sm" onClick={() => setFactsModal(true)} disabled={updateIncident.isPending}>
                 <PencilLine size={14} /> Update facts
               </button>
+              <button className="btn-secondary btn-sm" onClick={() => setPriorityModal(true)} disabled={overridePriority.isPending}>
+                <AlertTriangle size={14} /> {inc.priority_override_level ? 'Change priority override' : 'Override priority'}
+              </button>
               <select
                 className="select btn-sm w-auto"
                 value=""
@@ -232,6 +245,18 @@ export function IncidentDetailPage() {
                       : inc.followup_answer === 'unknown' ? 'not sure' : inc.followup_answer}
                   </strong>
                 </span>
+              </div>
+            )}
+            {inc.ai_extracted && (Array.isArray(inc.ai_extracted.immediate_needs) || Array.isArray(inc.ai_extracted.uncertainties)) && (
+              <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                {Array.isArray(inc.ai_extracted.immediate_needs) && inc.ai_extracted.immediate_needs.length > 0 && <div className="rounded-lg border border-red-100 bg-red-50 p-3 text-xs"><strong className="text-red-800">Reported immediate needs</strong><p className="mt-1 text-neutral-700">{inc.ai_extracted.immediate_needs.map(String).join(', ')}</p></div>}
+                {Array.isArray(inc.ai_extracted.uncertainties) && inc.ai_extracted.uncertainties.length > 0 && <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs"><strong className="text-amber-900">Still needs verification</strong><ul className="mt-1 list-disc pl-4 text-amber-900">{inc.ai_extracted.uncertainties.map((item) => <li key={String(item)}>{String(item)}</li>)}</ul></div>}
+              </div>
+            )}
+            {inc.photo_url && (
+              <div className="mt-4 border-t border-neutral-200 pt-4">
+                <p className="mb-2 text-xs font-semibold text-neutral-700">Reporter evidence (authorized staff only)</p>
+                <img src={inc.photo_url} alt="Evidence supplied with this incident report" className="max-h-96 w-full rounded-lg border border-neutral-200 object-contain bg-neutral-50" />
               </div>
             )}
           </div>
@@ -512,6 +537,7 @@ export function IncidentDetailPage() {
       />
 
       <FactsModal open={factsModal} incident={inc} busy={updateIncident.isPending} onClose={() => setFactsModal(false)} onSave={handleUpdateFacts} />
+      <PriorityOverrideModal open={priorityModal} incident={inc} busy={overridePriority.isPending} onClose={() => setPriorityModal(false)} onSave={handlePriorityOverride} />
 
       {/* Notes modal */}
       <Modal open={notesModal} onClose={() => setNotesModal(false)} title="Coordinator Notes" size="sm">
@@ -529,6 +555,23 @@ export function IncidentDetailPage() {
       </Modal>
     </DashboardLayout>
   );
+}
+
+function PriorityOverrideModal({ open, incident, busy, onClose, onSave }: { open: boolean; incident: Incident; busy: boolean; onClose: () => void; onSave: (level: PriorityLevel | null, reason: string) => void }) {
+  const [level, setLevel] = useState<PriorityLevel | ''>(incident.priority_override_level ?? '');
+  const [reason, setReason] = useState('');
+  const close = () => { setLevel(incident.priority_override_level ?? ''); setReason(''); onClose(); };
+  return <Modal open={open} onClose={close} title="Human priority decision" size="sm">
+    <p className="mb-4 text-sm text-neutral-600">The calculated priority is {incident.calculated_priority_level ?? incident.priority_level} ({incident.calculated_priority_score ?? incident.priority_score}). An override controls the operational queue until it is cleared.</p>
+    <label className="label">Operational priority</label>
+    <select className="select" value={level} onChange={(event) => setLevel(event.target.value as PriorityLevel | '')}>
+      <option value="">Use calculated priority (clear override)</option>
+      <option value="critical">Critical</option><option value="high">High</option><option value="moderate">Moderate</option><option value="low">Low</option>
+    </select>
+    <label className="label mt-4">Reason for this decision</label>
+    <textarea className="input resize-none" rows={3} value={reason} onChange={(event) => setReason(event.target.value)} placeholder="e.g. Field team confirmed immediate danger" />
+    <div className="mt-4 flex justify-end gap-3"><button className="btn-secondary" onClick={close}>Cancel</button><button className="btn-primary" disabled={busy || reason.trim().length < 5} onClick={() => onSave(level || null, reason.trim())}>{busy ? <LoadingSpinner size={16} /> : 'Save decision'}</button></div>
+  </Modal>;
 }
 
 const TRI_FIELDS = [

@@ -15,6 +15,8 @@ interface ExtractResult {
   vulnerable_people: "yes" | "no" | "unknown";
   danger_increasing: "yes" | "no" | "unknown";
   people_affected: number | null;
+  immediate_needs: string[];
+  summary: string;
   uncertainties: string[];
 }
 
@@ -25,7 +27,7 @@ function extractFromText(text: string): ExtractResult {
   const lower = text.toLowerCase();
 
   const incident_category = (() => {
-    if (/\b(flood|water|rising water|drown|wet|submerge|inundat|deluge)\b/.test(lower)) return "flood";
+    if (/\b(flood|flooding|rising water|drown|submerg|inundat|deluge|water entering)\b/.test(lower)) return "flood";
     if (/\b(fire|flame|smoke|burn|blaze|inferno)\b/.test(lower)) return "fire";
     if (/\b(chest pain|collapsed|unconscious|bleeding|heart|stroke|seizure|medical|ambulance|injury|injured|hurt|wound)\b/.test(lower)) return "medical_emergency";
     if (/\b(heat|heatwave|dehydrat|hot|sunstroke|exhaustion|dizzy|faint)\b/.test(lower)) return "heatwave";
@@ -37,8 +39,18 @@ function extractFromText(text: string): ExtractResult {
   const vulnerable_people = lower.match(/\b(elder|old (?:man|woman|person)|child|baby|infant|disabled|wheelchair|cannot walk|pregnant|sick|bedridden)\b/) ? "yes" : "unknown";
   const danger_increasing = lower.match(/\b(rising|worsening|getting worse|spreading|increasing|growing|flood(?:ing)? (?:is |is )?(?:still )?rising|water (?:is )?entering|breaking|breach|deteriorat)\b/) ? "yes" : "unknown";
 
-  const numberMatch = lower.match(/\b(\d+)\s*(?:people|persons?|individuals?|families?|kids?|children|adults?|men|women|workers?|residents?|victims?)\b/);
-  const people_affected = numberMatch ? parseInt(numberMatch[1], 10) : null;
+  const numberMatch = lower.match(/\b(\d+|one|two|three|four|five|six|seven|eight|nine|ten)\s+(?:(?:injured|trapped|affected|missing|stranded|sick|elderly|young)\s+)?(?:people|persons?|individuals?|families?|kids?|children|adults?|men|women|workers?|residents?|victims?)\b/);
+  const wordNumbers: Record<string, number> = { one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10 };
+  const people_affected = numberMatch ? (/^\d+$/.test(numberMatch[1]) ? parseInt(numberMatch[1], 10) : wordNumbers[numberMatch[1]]) : null;
+  const needPatterns: Array<[string, RegExp]> = [
+    ["rescue", /\b(rescue|save|help us|evacuat)/],
+    ["medical care", /\b(doctor|medical|ambulance|medicine|first aid|hospital)/],
+    ["boat", /\b(boat|raft)/],
+    ["water", /\b(drinking water|clean water|thirst)/],
+    ["food", /\b(food|hungry|meal)/],
+    ["shelter", /\b(shelter|safe place|homeless|displaced)/],
+  ];
+  const immediate_needs = needPatterns.filter(([, pattern]) => pattern.test(lower)).map(([need]) => need);
 
   const uncertainties: string[] = [];
   if (people_trapped === "unknown") uncertainties.push("Whether people are trapped could not be determined from the text");
@@ -54,6 +66,8 @@ function extractFromText(text: string): ExtractResult {
     vulnerable_people,
     danger_increasing,
     people_affected,
+    immediate_needs,
+    summary: text.trim().replace(/\s+/g, " ").slice(0, 240),
     uncertainties,
   };
 }
