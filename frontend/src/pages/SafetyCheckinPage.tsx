@@ -1,5 +1,60 @@
 import { useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
+import { ShieldCheck, LifeBuoy } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
+import { PublicHeader } from '@/components/layout/PublicHeader';
+import { useLang } from '@/lib/i18n';
 
-export function SafetyCheckinPage(){const [params]=useSearchParams();const token=params.get('token')||'';const [state,setState]=useState<'idle'|'saving'|'safe'|'needs_help'|'error'>('idle');const respond=async(status:'safe'|'needs_help')=>{setState('saving');const {error}=await supabase.rpc('public_safety_checkin',{p_token:token,p_status:status});setState(error?'error':status);};return <main className="min-h-screen bg-neutral-50 grid place-items-center p-4"><div className="card card-body max-w-md w-full text-center"><h1 className="text-2xl font-bold">Safety check-in</h1><p className="text-sm text-neutral-600 mt-2">Use this private link once. If you request help, coordinators receive a proactive welfare incident with your registered needs.</p>{!token?<p className="mt-5 text-red-600">This link is missing its private token.</p>:state==='safe'?<p className="mt-5 rounded-lg bg-green-50 p-4 text-green-800">Thank you. You are recorded as safe.</p>:state==='needs_help'?<p className="mt-5 rounded-lg bg-red-50 p-4 text-red-800">Help was requested. If danger is immediate, also contact local emergency services.</p>:state==='error'?<p className="mt-5 text-red-600">This link is invalid, expired, or already used.</p>:<div className="grid gap-3 mt-6"><button className="btn-primary btn-lg" disabled={state==='saving'} onClick={()=>void respond('safe')}>I am safe</button><button className="btn-danger btn-lg" disabled={state==='saving'} onClick={()=>void respond('needs_help')}>I need help</button></div>}<Link to="/" className="mt-6 text-sm text-primary-700">ResQNet home</Link></div></main>}
+type State = 'idle' | 'saving' | 'safe' | 'needs_help' | 'error';
+
+export function SafetyCheckinPage() {
+  const { t } = useLang();
+  const [params] = useSearchParams();
+  const token = params.get('token') || '';
+  const [state, setState] = useState<State>('idle');
+
+  const respond = async (status: 'safe' | 'needs_help') => {
+    setState('saving');
+    const { error } = await supabase.rpc('public_safety_checkin', { p_token: token, p_status: status });
+    setState(error ? 'error' : status);
+  };
+
+  return (
+    <div className="min-h-screen bg-paper">
+      <PublicHeader />
+      <main id="main" className="mx-auto max-w-lg px-4 py-10 sm:px-6">
+        <h1 className="text-[40px] font-bold leading-tight">{t('checkin.title')}</h1>
+        <p className="mt-2 text-lg text-neutral-600">{t('checkin.lead')}</p>
+
+        <div className="mt-8" aria-live="polite">
+          {!token ? (
+            <p className="rounded-panel border border-[#F0C2BC] bg-[#FBE4E1] p-5 text-critical">{t('checkin.missing')}</p>
+          ) : state === 'safe' ? (
+            <p className="rounded-panel border border-[#BFDCCB] bg-[#E1F0E8] p-5 text-lg text-success">{t('checkin.savedSafe')}</p>
+          ) : state === 'needs_help' ? (
+            <p className="rounded-panel border border-[#F0C2BC] bg-[#FBE4E1] p-5 text-lg text-critical">{t('checkin.savedHelp')}</p>
+          ) : state === 'error' ? (
+            <div className="rounded-panel border border-line bg-white p-5">
+              <p className="text-neutral-700">{t('checkin.invalid')}</p>
+              <Link to="/report" className="btn-danger mt-4">{t('checkin.reportInstead')}</Link>
+            </div>
+          ) : (
+            <div className="grid gap-3">
+              <button className="flex min-h-[84px] items-center gap-4 rounded-panel bg-primary-600 px-6 py-4 text-start text-white transition-colors hover:bg-primary-700 disabled:opacity-60" disabled={state === 'saving'} onClick={() => void respond('safe')}>
+                <ShieldCheck size={32} aria-hidden="true" className="shrink-0" />
+                <span className="font-display text-2xl font-bold">{t('checkin.safe')}</span>
+              </button>
+              <button className="flex min-h-[84px] items-center gap-4 rounded-panel bg-critical px-6 py-4 text-start text-white transition-colors hover:bg-[#A81F16] disabled:opacity-60" disabled={state === 'saving'} onClick={() => void respond('needs_help')}>
+                <LifeBuoy size={32} aria-hidden="true" className="shrink-0" />
+                <span>
+                  <span className="block font-display text-2xl font-bold">{t('checkin.help')}</span>
+                  <span className="block text-[15px] text-white/85">{t('checkin.helpHint')}</span>
+                </span>
+              </button>
+            </div>
+          )}
+        </div>
+      </main>
+    </div>
+  );
+}

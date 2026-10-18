@@ -1,6 +1,7 @@
 import { useState } from 'react';
+import { PublicHeader } from '@/components/layout/PublicHeader';
 import { Link, useSearchParams } from 'react-router-dom';
-import { Radio, ArrowLeft, Search, Check, Clock, MapPin, AlertTriangle } from 'lucide-react';
+import { Search, Check, Clock, MapPin, AlertTriangle } from 'lucide-react';
 import { useAppendIncidentDetails, useIncidentByReportCode } from '@/hooks/useData';
 import { PriorityBadge, StatusBadge, VerificationBadge, TriStateBadge } from '@/components/ui/Badges';
 import { INCIDENT_TYPE_LABELS } from '@/types';
@@ -34,24 +35,12 @@ export function ReportStatusPage() {
   };
 
   return (
-    <div className="min-h-screen bg-neutral-50">
-      <header className="bg-white border-b border-neutral-200">
-        <div className="max-w-2xl mx-auto px-6 py-4 flex items-center justify-between">
-          <Link to="/" className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-primary-600 flex items-center justify-center">
-              <Radio size={18} className="text-white" />
-            </div>
-            <span className="font-bold text-neutral-800">ResQNet</span>
-          </Link>
-          <Link to="/" className="btn-ghost btn-sm">
-            <ArrowLeft size={16} /> Home
-          </Link>
-        </div>
-      </header>
+    <div className="min-h-screen bg-paper">
+      <PublicHeader />
 
-      <main className="max-w-2xl mx-auto px-6 py-8">
-        <h1 className="text-2xl font-bold text-neutral-800 mb-1">Check Report Status</h1>
-        <p className="text-sm text-neutral-500 mb-6">Enter your report ID and private tracking key. Signed-in users can open reports submitted from their account without the key.</p>
+      <main id="main" className="mx-auto max-w-2xl px-4 py-8 sm:px-6">
+        <h1 className="text-4xl font-bold">Track a report</h1>
+        <p className="mb-6 mt-2 text-neutral-600">Enter your report ID and private tracking key. Signed-in users can open reports submitted from their account without the key.</p>
 
         {/* Search */}
         <div className="card card-body mb-6">

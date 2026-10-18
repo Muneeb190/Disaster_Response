@@ -66,7 +66,7 @@ export function TeamStatusBadge({ status, className }: { status: TeamStatus; cla
 
 // Shown on any seeded/simulated record so demo data is never mistaken for live data.
 export function DemoBadge({ className }: { className?: string }) {
-  return <span className={cn('inline-flex items-center rounded px-1.5 py-0.5 text-xs font-bold tracking-wide bg-amber-100 text-amber-800 border border-amber-300', className)}>DEMO SCENARIO</span>;
+  return <span className={cn('inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border border-dashed border-neutral-400 px-2.5 py-0.5 text-[13px] font-semibold text-neutral-600', className)} title="Seeded or simulated data, not a live record">Demo data</span>;
 }
 
 export function AssignmentStatusBadge({ status, className }: { status: AssignmentStatus; className?: string }) {
@@ -91,10 +91,9 @@ export function TriStateBadge({ value, label, className }: { value: 'yes' | 'no'
     no: 'badge-success',
     unknown: 'badge-neutral',
   };
-  const icons = { yes: '⚠', no: '✓', unknown: '?' };
-  return (
+    return (
     <span className={cn(map[value], className)}>
-      {icons[value]} {label}: {value}
+      {label}: {value === 'unknown' ? 'not sure' : value}
     </span>
   );
 }

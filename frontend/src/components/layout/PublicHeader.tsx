@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { Phone } from 'lucide-react';
+import { LogOut, Phone } from 'lucide-react';
 import { Wordmark } from '@/components/brand/Brand';
 import { useAuth } from '@/auth/AuthContext';
 import { useLang } from '@/lib/i18n';
@@ -33,6 +33,7 @@ export function PublicHeader() {
             <Link to={auth.user ? '/portal' : '/login'} className="btn-ghost btn-sm hidden md:inline-flex">
               {auth.user ? t('nav.workspace') : t('nav.signin')}
             </Link>
+            {auth.user && <button type="button" className="btn-ghost btn-sm" onClick={() => void auth.signOut()}><LogOut size={16} aria-hidden="true" /><span className="hidden sm:inline">{t('nav.signout')}</span><span className="sr-only sm:hidden">{t('nav.signout')}</span></button>}
           </nav>
         </div>
       </header>

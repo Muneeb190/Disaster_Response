@@ -18,6 +18,7 @@
   /* Urdu: Nastaliq everywhere (the condensed display face has no Urdu glyphs); English islands keep Barlow. */
   [dir='rtl'] body, [dir='rtl'] h1, [dir='rtl'] h2, [dir='rtl'] h3 { font-family: 'Noto Nastaliq Urdu', 'Barlow', serif; line-height: 2.1; letter-spacing: 0; }
   [dir='rtl'] h1 { line-height: 1.9; }
+  [dir='rtl'] .font-display { font-family: 'Noto Nastaliq Urdu', 'Barlow', serif; letter-spacing: 0; line-height: 1.9; }
   [dir='rtl'] [lang='en'] { font-family: 'Barlow', system-ui, sans-serif; line-height: 1.5; }
 
   .leaflet-container { z-index: 1; font-family: inherit; }
