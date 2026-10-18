@@ -2,12 +2,13 @@ import { useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import {
   ArrowLeft, ArrowRight, Check, X, AlertTriangle, RefreshCw, Siren, Users,
-  MapPin, Clock, FileText, Activity, Zap, AlertOctagon, ShieldCheck
+  MapPin, Clock, FileText, Activity, AlertOctagon, ShieldCheck, MessageCircleQuestion
 } from 'lucide-react';
 import { DashboardLayout } from '@/components/dashboard/DashboardLayout';
 import { MiniMap } from '@/components/map/IncidentMap';
 import { PriorityBadge, StatusBadge, VerificationBadge, TriStateBadge, TeamStatusBadge, AssignmentStatusBadge } from '@/components/ui/Badges';
 import { Modal, ConfirmDialog } from '@/components/ui/Modal';
+import { WhyPriorityPanel, ConfidenceBadge, ConfidencePanel, UrgentCheckBadge } from '@/components/incident/PriorityPanels';
 import { Skeleton, EmptyState, LoadingSpinner, ErrorState } from '@/components/ui/States';
 import { useToast } from '@/components/ui/toast-context';
 import {
@@ -18,6 +19,10 @@ import {
 import { parseLocation, INCIDENT_TYPE_LABELS, STATUS_LABELS } from '@/types';
 import type { IncidentStatus, VerificationStatus } from '@/types';
 import { formatDateTime, timeAgo } from '@/lib/utils';
+import { TranscriptText } from '@/components/incident/TranscriptText';
+import { LANGUAGE_LABELS } from '@/types';
+import { DuplicateReportsPanel } from '@/components/incident/DuplicateReportsPanel';
+import { EvacuationRoutePanel } from '@/components/incident/EvacuationRoutePanel';
 
 export function IncidentDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -157,11 +162,13 @@ export function IncidentDetailPage() {
                   {inc.life_threatening ? <AlertOctagon size={24} className="text-red-600" /> : <Siren size={24} className="text-blue-600" />}
                 </div>
                 <div>
-                  <div className="flex items-center gap-2 mb-1">
+                  <div className="flex items-center gap-2 mb-1 flex-wrap">
                     <PriorityBadge level={inc.priority_level} />
                     <span className="text-lg font-bold text-neutral-800">{inc.priority_score}/100</span>
+                    <ConfidenceBadge level={inc.confidence_level} score={inc.confidence_score} />
+                    {inc.needs_urgent_check && <UrgentCheckBadge />}
                   </div>
-                  <p className="text-xs text-neutral-400">Priority score — decision support only</p>
+                  <p className="text-xs text-neutral-400">Risk score — decision support only</p>
                 </div>
               </div>
               <div className="flex flex-col items-end gap-1">
@@ -170,19 +177,8 @@ export function IncidentDetailPage() {
               </div>
             </div>
 
-            {/* Priority reasons */}
-            <div className="bg-neutral-50 rounded-lg p-3 mb-3">
-              <p className="text-xs font-medium text-neutral-500 mb-2 flex items-center gap-1.5">
-                <Zap size={12} /> Priority Reasons
-              </p>
-              <ul className="space-y-1">
-                {inc.priority_reasons.map((reason, i) => (
-                  <li key={i} className="text-xs text-neutral-700 flex items-start gap-1.5">
-                    <span className="text-primary-500 mt-0.5">•</span>
-                    {reason}
-                  </li>
-                ))}
-              </ul>
+            <div className="mb-3">
+              <WhyPriorityPanel incident={inc} />
             </div>
 
             {inc.life_threatening && (
@@ -224,12 +220,42 @@ export function IncidentDetailPage() {
               <FileText size={14} /> Description
             </h3>
             <p className="text-sm text-neutral-700 leading-relaxed">{inc.description}</p>
+            {inc.input_mode === 'voice' && inc.voice_transcript && (
+              <div className="mt-3 rounded-lg border border-blue-100 bg-blue-50 p-3">
+                <p className="mb-1 text-xs font-semibold text-blue-700">
+                  Original voice transcript{inc.transcript_language ? ` · ${LANGUAGE_LABELS[inc.transcript_language]}` : ''}
+                </p>
+                <TranscriptText text={inc.voice_transcript} language={inc.transcript_language} className="text-sm text-neutral-800" />
+                {inc.transcript_language !== 'en' && inc.transcript_english && (
+                  <div className="mt-3 border-t border-blue-100 pt-2">
+                    <p className="mb-1 text-xs font-medium text-blue-700">English translation</p>
+                    <p className="text-sm text-neutral-700">{inc.transcript_english}</p>
+                  </div>
+                )}
+              </div>
+            )}
             {inc.area_landmark && (
               <div className="flex items-center gap-1.5 text-xs text-neutral-500 mt-3">
                 <MapPin size={14} /> {inc.area_landmark}
               </div>
             )}
+            {inc.followup_question && (
+              <div className="text-xs bg-neutral-50 rounded-lg p-2.5 mt-3 flex items-start gap-2">
+                <MessageCircleQuestion size={14} className="text-primary-600 flex-shrink-0 mt-0.5" />
+                <span>
+                  Follow-up asked: “{inc.followup_question}” —{' '}
+                  <strong>
+                    {inc.followup_skipped || !inc.followup_answer
+                      ? 'skipped by reporter'
+                      : inc.followup_answer === 'unknown' ? 'not sure' : inc.followup_answer}
+                  </strong>
+                </span>
+              </div>
+            )}
           </div>
+
+          <DuplicateReportsPanel incident={inc} />
+          <EvacuationRoutePanel incident={inc} />
 
           {/* Reported conditions */}
           <div className="card card-body">
@@ -354,6 +380,8 @@ export function IncidentDetailPage() {
               </div>
             </div>
           )}
+
+          <ConfidencePanel incident={inc} />
 
           {/* Verification controls */}
           <div className="card card-body">

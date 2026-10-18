@@ -26,4 +26,4 @@ See [frontend/README.md](frontend/README.md) for frontend setup and [backend/REA
 
 Never commit service-role keys, database passwords, personal access tokens, or secrets prefixed with `VITE_`. Only the Supabase URL and publishable key belong in the frontend environment.
 
-The current coordinator interface is hackathon demo mode. Add Supabase Auth and coordinator-specific authorization before production use.
+Operational access is protected by Supabase Auth and role-based database policies.

@@ -32,9 +32,117 @@ export interface Incident {
   ai_extracted: Record<string, unknown> | null;
   coordinator_notes: string | null;
   photo_url: string | null;
+  reporter_user_id?: string | null;
+  is_demo?: boolean;
+  data_source?: string;
   created_at: string;
   updated_at: string;
+  // Feature 12: follow-up question
+  followup_question: string | null;
+  followup_field: string | null;
+  followup_answer: TriState | null;
+  followup_skipped: boolean;
+  // Feature 13: risk score with reasons
+  risk_factors: RiskFactor[];
+  // Feature 14: information confidence
+  confidence_score: number;
+  confidence_level: ConfidenceLevel;
+  confidence_reasons: ConfidenceReason[];
+  matching_report_count: number;
+  needs_urgent_check: boolean;
+  // Feature 11: voice reports (English or Urdu)
+  input_mode: 'text' | 'voice';
+  voice_transcript: string | null;
+  transcript_language: TranscriptLanguage | null;
+  transcript_english: string | null;
+  // Features 15-16: duplicate detection and combined incidents
+  primary_incident_id: string | null;
+  linked_at: string | null;
+  linked_by: string | null;
+  corroboration_count: number;
+  corroboration_bonus: number;
+  enriched_from_report_ids: string[];
 }
+
+export interface DuplicateCandidate {
+  incident_id: string;
+  report_code: string;
+  type: IncidentType;
+  description: string;
+  area_landmark: string | null;
+  priority_level: PriorityLevel;
+  status: IncidentStatus;
+  created_at: string;
+  score: number;
+  distance_m: number;
+  time_difference_minutes: number;
+  description_similarity: number;
+  review_status: 'suggested' | 'unlinked';
+}
+
+export interface DangerZone {
+  id: string;
+  incident_id: string | null;
+  name: string;
+  hazard_type: IncidentType;
+  severity: PriorityLevel;
+  geojson: { type: 'Polygon' | 'MultiPolygon'; coordinates: number[][][] | number[][][][] };
+  radius_m: number;
+  source: 'user_report' | 'coordinator' | 'official';
+  verification_status: 'provisional' | 'confirmed' | 'rejected';
+  instructions: string | null;
+  expires_at: string | null;
+}
+
+export type TranscriptLanguage = 'en' | 'ur' | 'mixed' | 'other';
+
+export const LANGUAGE_LABELS: Record<TranscriptLanguage, string> = {
+  en: 'English',
+  ur: 'اردو · Urdu',
+  mixed: 'English + اردو',
+  other: 'Other language',
+};
+
+// Result of the transcribe Edge Function.
+export interface VoiceTranscription {
+  language: TranscriptLanguage;
+  transcript: string;
+  english_translation: string;
+  summary: string;
+  incident_category: IncidentType;
+  people_affected: number | null;
+  people_trapped: TriState;
+  injuries_reported: TriState;
+  vulnerable_people: TriState;
+  danger_increasing: TriState;
+  injury_details: string | null;
+  immediate_needs: string[];
+  uncertainties: string[];
+  source: 'gemini';
+  model: string;
+}
+
+export type ConfidenceLevel = 'high' | 'medium' | 'low';
+export type FactStatus = 'reported' | 'followup' | 'unknown';
+
+export interface RiskFactor {
+  key: string;
+  label: string;
+  points: number;
+  status: FactStatus;
+  detail: string | null;
+}
+
+export interface ConfidenceReason {
+  label: string;
+  delta: number;
+}
+
+export const FACT_STATUS_LABELS: Record<FactStatus, string> = {
+  reported: 'Reported',
+  followup: 'Answered in follow-up',
+  unknown: 'Not yet known',
+};
 
 export interface RescueTeam {
   id: string;

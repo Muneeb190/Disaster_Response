@@ -1,28 +1,52 @@
 import { useEffect, useRef } from 'react';
+import { supabase } from '@/lib/supabase';
 import { useQueryClient } from '@tanstack/react-query';
+import { showBrowserNotification } from '@/lib/notifications';
 
-/**
- * Polls the backend API every 30 seconds to keep dashboard data fresh.
- * Replaces Supabase Realtime subscriptions since we now use a PostgreSQL
- * REST API backend on Railway instead of Supabase directly.
- */
-export function useRealtimeSync(intervalMs = 30_000) {
+export function useRealtimeSync() {
   const qc = useQueryClient();
-  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const mounted = useRef(false);
 
   useEffect(() => {
-    timerRef.current = setInterval(() => {
-      qc.invalidateQueries({ queryKey: ['incidents'] });
-      qc.invalidateQueries({ queryKey: ['teams'] });
-      qc.invalidateQueries({ queryKey: ['resources'] });
-      qc.invalidateQueries({ queryKey: ['assignments'] });
-      qc.invalidateQueries({ queryKey: ['alerts'] });
-      qc.invalidateQueries({ queryKey: ['escalations'] });
-      qc.invalidateQueries({ queryKey: ['dashboard-summary'] });
-    }, intervalMs);
+    if (mounted.current) return;
+    mounted.current = true;
+
+    const channel = supabase
+      .channel('resqnet-realtime')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'incidents' }, () => {
+        qc.invalidateQueries({ queryKey: ['incidents'] });
+        qc.invalidateQueries({ queryKey: ['dashboard-summary'] });
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'rescue_teams' }, () => {
+        qc.invalidateQueries({ queryKey: ['teams'] });
+        qc.invalidateQueries({ queryKey: ['dashboard-summary'] });
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'resources' }, () => {
+        qc.invalidateQueries({ queryKey: ['resources'] });
+        qc.invalidateQueries({ queryKey: ['dashboard-summary'] });
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'assignments' }, () => {
+        qc.invalidateQueries({ queryKey: ['assignments'] });
+        qc.invalidateQueries({ queryKey: ['incidents'] });
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'alerts' }, (payload) => {
+        qc.invalidateQueries({ queryKey: ['alerts'] });
+        if (payload.eventType === 'INSERT') {
+          const alert = payload.new as { severity?: string; message?: string };
+          void showBrowserNotification(`ResQNet ${alert.severity ?? 'alert'}`, alert.message ?? 'New response alert');
+        }
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'danger_zones' }, () => {
+        qc.invalidateQueries({ queryKey: ['danger-zones'] });
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'escalations' }, () => {
+        qc.invalidateQueries({ queryKey: ['escalations'] });
+      })
+      .subscribe();
 
     return () => {
-      if (timerRef.current) clearInterval(timerRef.current);
+      supabase.removeChannel(channel);
+      mounted.current = false;
     };
-  }, [qc, intervalMs]);
+  }, [qc]);
 }

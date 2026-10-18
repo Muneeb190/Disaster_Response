@@ -1,4 +1,5 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Noto+Nastaliq+Urdu:wght@400;600&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -233,4 +234,10 @@
   .command-source-line { @apply flex justify-between gap-4 mt-5 text-[8px] font-mono text-[#87948f] uppercase tracking-[.04em]; }
   @media (max-width: 900px) { .command-sidebar { @apply w-[68px] px-2; } .command-brand { @apply justify-center px-0; } .command-brand > div:last-child, .command-nav-link span, .command-operation, .command-handover, .command-help { @apply hidden; } .command-nav-link { @apply justify-center px-2; } .command-nav-count { @apply hidden; } .command-main { @apply p-4; } .command-page-head { @apply items-start flex-col; } .command-source-line { @apply flex-col; } }
   @media (max-width: 640px) { .command-topbar { @apply px-3; } .command-top-brand, .command-location, .command-level, .command-operational, .command-topbar > div:last-child > svg { @apply hidden; } .command-kpi-grid { @apply grid-cols-1; } .command-main { @apply p-3; } .command-advisory { @apply items-start flex-wrap; } .command-advisory button { @apply ml-0; } .command-map-controls { @apply overflow-x-auto; } .command-map-legend { @apply overflow-x-auto whitespace-nowrap; } .command-page-head h1 { @apply text-2xl; } }
+}
+
+/* Urdu transcripts: Latin letters stay in Inter, Urdu letters fall through to Nastaliq. */
+.urdu-text {
+  font-family: 'Inter', 'Noto Nastaliq Urdu', 'Jameel Noori Nastaleeq', 'Urdu Typesetting', system-ui, sans-serif;
+  line-height: 2.2;
 }

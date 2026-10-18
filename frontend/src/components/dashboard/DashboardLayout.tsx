@@ -1,7 +1,8 @@
 import { NavLink, useLocation } from 'react-router-dom';
-import { LayoutDashboard, ListFilter, Activity, Radio, Map, RadioTower, House, MessageSquare, FileText, Bell, ChevronDown, HelpCircle } from 'lucide-react';
+import { LayoutDashboard, ListFilter, Activity, Radio, Map, RadioTower, House, MessageSquare, FileText, Bell, ChevronDown, HelpCircle, UserCog, LogOut } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useRealtimeSync } from '@/hooks/useRealtime';
+import { useAuth } from '@/auth/AuthContext';
 
 const navItems = [
   { to: '/dashboard', label: 'Overview', icon: LayoutDashboard },
@@ -11,6 +12,7 @@ const navItems = [
   { to: '/resources', label: 'Shelters', icon: House },
   { to: '/assignments', label: 'Communications', icon: MessageSquare },
   { to: '/incidents', label: 'Reports', icon: FileText },
+  { to: '/admin/users', label: 'Users & roles', icon: UserCog },
 ];
 
 export function DashboardSidebar() {
@@ -46,7 +48,7 @@ export function DashboardSidebar() {
         <p className="command-overline">Active operation</p>
         <div className="flex items-center gap-2 text-[12px] text-slate-200"><span className="command-status-dot command-status-dot-amber" /> River flood response</div>
         <p className="command-mono mt-3">SAC-FL-2026-042</p>
-        <p className="text-[11px] text-slate-400 mt-2 leading-relaxed">Operational period 03 06:00<br />–18:00 PDT</p>
+        <p className="text-[11px] text-slate-400 mt-2 leading-relaxed">Pakistan emergency<br />coordination network</p>
       </div>
 
       <div className="command-handover">
@@ -60,6 +62,8 @@ export function DashboardSidebar() {
 }
 
 export function DashboardTopBar({ title, subtitle, children }: { title: string; subtitle?: string; children?: React.ReactNode }) {
+  const auth = useAuth();
+  const initials = (auth.profile?.full_name || auth.profile?.email || 'Admin').split(/\s+/).map((part) => part[0]).join('').slice(0, 2).toUpperCase();
   return (
     <header className="command-topbar">
       <div className="flex items-center gap-4 min-w-0">
@@ -67,7 +71,7 @@ export function DashboardTopBar({ title, subtitle, children }: { title: string; 
         <div className="command-top-logo"><Radio size={15} /></div>
         <span className="command-top-brand">FIELDWORK</span>
         <span className="command-divider" />
-        <span className="command-location">Sacramento County EOC <ChevronDown size={14} /></span>
+        <span className="command-location">Islamabad Command Centre <ChevronDown size={14} /></span>
         <span className="command-level"><span /> LEVEL 2 · PARTIAL ACTIVATION</span>
       </div>
       <div className="flex items-center gap-4">
@@ -75,7 +79,8 @@ export function DashboardTopBar({ title, subtitle, children }: { title: string; 
         <span className="command-operational"><span /> Systems operational</span>
         <Bell size={17} className="text-slate-600" />
         <span className="command-divider hidden md:block" />
-        <div className="command-user"><span>AM</span><strong>A. Martinez</strong><ChevronDown size={13} /></div>
+        <div className="command-user"><span>{initials}</span><strong>{auth.profile?.full_name || 'Administrator'}</strong></div>
+        <button className="text-slate-500 hover:text-slate-800" title="Sign out" onClick={() => void auth.signOut()}><LogOut size={16} /></button>
       </div>
       <span className="sr-only">{title} {subtitle}</span>
     </header>

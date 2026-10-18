@@ -5,6 +5,8 @@ import { DashboardLayout } from '@/components/dashboard/DashboardLayout';
 import { PriorityBadge, StatusBadge, VerificationBadge } from '@/components/ui/Badges';
 import { Skeleton, EmptyState } from '@/components/ui/States';
 import { useIncidents } from '@/hooks/useData';
+import { ConfidenceBadge, UrgentCheckBadge } from '@/components/incident/PriorityPanels';
+import { topReasons } from '@/lib/triage';
 import { INCIDENT_TYPE_LABELS, type IncidentType, type IncidentStatus, type PriorityLevel, type VerificationStatus } from '@/types';
 import { timeAgo } from '@/lib/utils';
 
@@ -15,6 +17,7 @@ export function IncidentsPage() {
   const [priorityFilter, setPriorityFilter] = useState<string>('');
   const [statusFilter, setStatusFilter] = useState<string>('');
   const [verificationFilter, setVerificationFilter] = useState<string>('');
+  const [includeLinked, setIncludeLinked] = useState(false);
 
   const incidents = useIncidents({
     type: (typeFilter || undefined) as IncidentType | undefined,
@@ -22,6 +25,7 @@ export function IncidentsPage() {
     status: (statusFilter || undefined) as IncidentStatus | undefined,
     verification: (verificationFilter || undefined) as VerificationStatus | undefined,
     limit: 100,
+    includeLinked,
   });
 
   const filtered = (incidents.data ?? []).filter((inc) => {
@@ -79,6 +83,10 @@ export function IncidentsPage() {
             <option value="disputed">Disputed</option>
             <option value="flagged">Flagged</option>
           </select>
+          <label className="flex items-center gap-2 text-xs text-neutral-600 whitespace-nowrap">
+            <input type="checkbox" checked={includeLinked} onChange={(e) => setIncludeLinked(e.target.checked)} />
+            Show combined source reports
+          </label>
           {(typeFilter || priorityFilter || statusFilter || verificationFilter || search) && (
             <button
               className="btn-ghost btn-sm"
@@ -103,7 +111,8 @@ export function IncidentsPage() {
                 <tr className="text-left text-xs text-neutral-500 uppercase tracking-wide">
                   <th className="px-4 py-3 font-medium">Report Code</th>
                   <th className="px-4 py-3 font-medium">Type</th>
-                  <th className="px-4 py-3 font-medium">Priority</th>
+                  <th className="px-4 py-3 font-medium">Priority &amp; why</th>
+                  <th className="px-4 py-3 font-medium">Confidence</th>
                   <th className="px-4 py-3 font-medium">Status</th>
                   <th className="px-4 py-3 font-medium">Verification</th>
                   <th className="px-4 py-3 font-medium">People</th>
@@ -117,12 +126,22 @@ export function IncidentsPage() {
                   <tr key={inc.id} className="hover:bg-neutral-50 transition-colors cursor-pointer" onClick={() => navigate(`/incidents/${inc.id}`)}>
                     <td className="px-4 py-3">
                       <code className="text-xs font-bold text-primary-700">{inc.report_code}</code>
+                      {inc.primary_incident_id && <span className="block text-[10px] text-blue-600 mt-0.5">Combined source</span>}
                     </td>
                     <td className="px-4 py-3 text-xs text-neutral-600">{INCIDENT_TYPE_LABELS[inc.type]}</td>
-                    <td className="px-4 py-3">
+                    <td className="px-4 py-3 max-w-[260px]">
                       <div className="flex items-center gap-1.5">
                         <PriorityBadge level={inc.priority_level} />
                         <span className="text-xs text-neutral-400">{inc.priority_score}</span>
+                      </div>
+                      {topReasons(inc.risk_factors).length > 0 && (
+                        <p className="text-[11px] text-neutral-500 mt-0.5 truncate">{topReasons(inc.risk_factors).join(' · ')}</p>
+                      )}
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex flex-col items-start gap-1">
+                        <ConfidenceBadge level={inc.confidence_level ?? 'low'} />
+                        {inc.needs_urgent_check && <UrgentCheckBadge />}
                       </div>
                     </td>
                     <td className="px-4 py-3"><StatusBadge status={inc.status} /></td>

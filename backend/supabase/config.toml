@@ -2,3 +2,10 @@ project_id = "gzgdcmzxqlrvazawygtu"
 
 [functions.ai-extract]
 verify_jwt = false
+
+# Public reporters call this without signing in, like ai-extract.
+[functions.transcribe]
+verify_jwt = false
+
+[functions.invite-role]
+verify_jwt = false

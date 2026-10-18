@@ -19,7 +19,7 @@ const publishableKey = isSupabaseConfigured ? rawKey : 'placeholder-key';
 
 if (!isSupabaseConfigured) {
   console.warn(
-    'ResQNet: Missing or invalid Supabase credentials. Running in demo mode. Please set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in Vercel environment variables.'
+    'ResQNet: Missing or invalid Supabase credentials. Please set VITE_SUPABASE_URL and VITE_SUPABASE_PUBLISHABLE_KEY in the environment.'
   );
 }
 
