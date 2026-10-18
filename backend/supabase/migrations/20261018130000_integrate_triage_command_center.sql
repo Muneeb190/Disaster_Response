@@ -39,6 +39,7 @@ begin
   return query select after_row.priority_score, after_row.priority_level, after_row.priority_reasons, after_row.life_threatening, esc;
 end;
 $$;
+
 create or replace function public.admin_update_incident(p_incident_id uuid, p_changes jsonb, p_reason text default null)
 returns public.incidents language plpgsql security definer set search_path = public, extensions as $$
 declare
@@ -108,6 +109,7 @@ begin
   return result;
 end;
 $$;
+
 create or replace function public.situation_summary(p_hours int default 12)
 returns jsonb language plpgsql stable security definer set search_path = public as $$
 declare
@@ -152,6 +154,7 @@ begin
   );
 end;
 $$;
+
 revoke execute on function public.admin_update_incident(uuid, jsonb, text) from public, anon;
 grant execute on function public.admin_update_incident(uuid, jsonb, text) to authenticated;
 revoke execute on function public.recalculate_incident_priority(uuid, text) from public, anon;

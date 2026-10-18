@@ -3,7 +3,7 @@ export type TriState = 'yes' | 'no' | 'unknown';
 export type PriorityLevel = 'critical' | 'high' | 'moderate' | 'low';
 export type IncidentStatus = 'reported' | 'verified' | 'assigned' | 'dispatched' | 'resolved' | 'cancelled';
 export type VerificationStatus = 'pending' | 'verified' | 'disputed' | 'flagged';
-export type TeamStatus = 'available' | 'assigned' | 'offline';
+export type TeamStatus = 'available' | 'assigned' | 'en_route' | 'unavailable' | 'offline';
 export type AssignmentStatus = 'assigned' | 'dispatched' | 'completed' | 'cancelled';
 
 export interface Incident {
@@ -29,6 +29,7 @@ export interface Incident {
   assigned_team_id: string | null;
   reporter_name: string | null;
   reporter_phone: string | null;
+  voice_recording_id?: string | null;
   ai_extracted: Record<string, unknown> | null;
   coordinator_notes: string | null;
   photo_url: string | null;
@@ -155,6 +156,7 @@ export interface RescueTeam {
   location: string | null;
   current_assignment_id: string | null;
   last_location_update: string | null;
+  is_demo?: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -167,8 +169,45 @@ export interface Resource {
   quantity_reserved: number;
   location: string | null;
   low_stock_threshold: number;
+  is_demo?: boolean;
   created_at: string;
   updated_at: string;
+}
+
+export type ShelterStatus = 'open' | 'full' | 'closed';
+
+export interface Shelter {
+  id: string;
+  name: string;
+  address: string | null;
+  location: string | null;
+  capacity: number;
+  occupancy: number;
+  status: ShelterStatus;
+  // null = not confirmed
+  wheelchair_access: boolean | null;
+  medical_support: boolean | null;
+  family_area: boolean | null;
+  has_power: boolean | null;
+  notes: string | null;
+  is_demo: boolean;
+  last_updated_at: string;
+  last_updated_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface IncidentEvent {
+  id: string;
+  incident_id: string;
+  event_type: string;
+  from_value: string | null;
+  to_value: string | null;
+  details: Record<string, unknown> | null;
+  reason: string | null;
+  actor_user_id: string | null;
+  created_at: string;
+  profiles?: { full_name: string; email: string } | null;
 }
 
 export interface Assignment {
@@ -195,7 +234,10 @@ export interface AuditLog {
   previous_values: Record<string, unknown> | null;
   new_values: Record<string, unknown> | null;
   reason: string | null;
+  actor_user_id?: string | null;
+  actor_role?: string | null;
   created_at: string;
+  profiles?: { full_name: string; email: string } | null;
 }
 
 export interface Escalation {
@@ -219,8 +261,14 @@ export interface Alert {
   severity: PriorityLevel;
   message: string;
   acknowledged: boolean;
+  acknowledged_at: string | null;
+  acknowledged_by: string | null;
   dedup_key: string | null;
+  entity_type: string | null;
+  entity_id: string | null;
   created_at: string;
+  incidents?: { report_code: string } | null;
+  profiles?: { full_name: string; email: string } | null;
 }
 
 export interface TeamRecommendation {
@@ -242,10 +290,26 @@ export interface RecalculateResult {
   escalated: boolean;
 }
 
-// Parse a GeoJSON/geography point into [lat, lng]
+// PostgREST returns geography columns as hex EWKB, e.g. 0101000020E6100000<x><y>.
+function parseEwkbPoint(hex: string): [number, number] | null {
+  const bytes = new Uint8Array(hex.match(/../g)!.map((pair) => parseInt(pair, 16)));
+  if (bytes.length < 21) return null;
+  const view = new DataView(bytes.buffer);
+  const littleEndian = bytes[0] === 1;
+  const type = view.getUint32(1, littleEndian);
+  if ((type & 0xff) !== 1) return null; // not a point
+  const offset = type & 0x20000000 ? 9 : 5; // skip SRID when present
+  if (bytes.length < offset + 16) return null;
+  const lng = view.getFloat64(offset, littleEndian);
+  const lat = view.getFloat64(offset + 8, littleEndian);
+  return [lat, lng];
+}
+
+// Parse a geography point (hex EWKB, WKT or GeoJSON) into [lat, lng]
 export function parseLocation(loc: string | null | undefined): [number, number] | null {
   if (!loc) return null;
   try {
+    if (typeof loc === 'string' && /^[0-9A-Fa-f]+$/.test(loc)) return parseEwkbPoint(loc);
     // PostGIS geography comes as "POINT(lng lat)" string from supabase-js
     const match = loc.match(/POINT\(([-\d.]+)\s+([-\d.]+)\)/);
     if (match) {
@@ -303,7 +367,9 @@ export const VERIFICATION_LABELS: Record<VerificationStatus, string> = {
 
 export const TEAM_STATUS_LABELS: Record<TeamStatus, string> = {
   available: 'Available',
-  assigned: 'Assigned',
+  assigned: 'Busy',
+  en_route: 'Travelling',
+  unavailable: 'Unavailable',
   offline: 'Offline',
 };
 
@@ -312,4 +378,23 @@ export const ASSIGNMENT_STATUS_LABELS: Record<AssignmentStatus, string> = {
   dispatched: 'Dispatched',
   completed: 'Completed',
   cancelled: 'Cancelled',
+};
+
+export const ALERT_TYPE_LABELS: Record<string, string> = {
+  critical_incident: 'Critical incident',
+  escalation: 'Escalation',
+  assignment: 'Assignment',
+  assignment_cancelled: 'Assignment cancelled',
+  team_unavailable: 'Team unavailable',
+  low_stock: 'Low stock',
+  shelter_near_full: 'Shelter capacity',
+  backup_request: 'Backup request',
+};
+
+export const TEAM_MARKER_COLORS: Record<TeamStatus, string> = {
+  available: '#16a34a',
+  assigned: '#d97706',
+  en_route: '#2563eb',
+  unavailable: '#dc2626',
+  offline: '#6b7280',
 };

@@ -1,22 +1,29 @@
-import { NavLink, useLocation } from 'react-router-dom';
-import { LayoutDashboard, ListFilter, Activity, Radio, Map, RadioTower, House, MessageSquare, FileText, Bell, ChevronDown, HelpCircle, UserCog, LogOut } from 'lucide-react';
+import { Link, NavLink } from 'react-router-dom';
+import { LayoutDashboard, ListFilter, Radio, RadioTower, House, Package, Bell, BellRing, ClipboardList, History, FileText, UserCog, LogOut, Globe, MapPin } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { useRealtimeSync } from '@/hooks/useRealtime';
+import { useRealtimeSync, type RealtimeStatus } from '@/hooks/useRealtime';
+import { useDashboardSummary, useDemoPresence } from '@/hooks/useData';
+import { useOperationArea } from '@/lib/region';
 import { useAuth } from '@/auth/AuthContext';
+import { DemoBadge } from '@/components/ui/Badges';
 
 const navItems = [
   { to: '/dashboard', label: 'Overview', icon: LayoutDashboard },
-  { to: '/incidents', label: 'Incidents', icon: ListFilter },
-  { to: '/dashboard', label: 'Response map', icon: Map },
-  { to: '/teams', label: 'Teams & resources', icon: RadioTower },
-  { to: '/resources', label: 'Shelters', icon: House },
-  { to: '/assignments', label: 'Communications', icon: MessageSquare },
-  { to: '/incidents', label: 'Reports', icon: FileText },
+  { to: '/incidents', label: 'Incidents', icon: ListFilter, count: 'open' as const },
+  { to: '/alerts', label: 'Alerts', icon: BellRing, count: 'alerts' as const },
+  { to: '/assignments', label: 'Assignments', icon: ClipboardList },
+  { to: '/teams', label: 'Teams', icon: RadioTower },
+  { to: '/resources', label: 'Resources', icon: Package },
+  { to: '/shelters', label: 'Shelters', icon: House },
+  { to: '/activity', label: 'Activity history', icon: History },
+  { to: '/reports/summary', label: 'Situation report', icon: FileText },
   { to: '/admin/users', label: 'Users & roles', icon: UserCog },
 ];
 
 export function DashboardSidebar() {
-  const location = useLocation();
+  const summary = useDashboardSummary();
+  const area = useOperationArea();
+  const counts = { open: summary.data?.openIncidents, alerts: summary.data?.unacknowledgedAlerts };
 
   return (
     <aside className="command-sidebar">
@@ -29,73 +36,71 @@ export function DashboardSidebar() {
       </div>
 
       <nav className="command-nav">
-        {navItems.map((item, index) => {
-          const isActive = index === 0
-            ? location.pathname === '/dashboard'
-            : item.to === '/incidents' && location.pathname.startsWith('/incidents');
+        {navItems.map((item) => {
+          const count = item.count ? counts[item.count] : undefined;
           return (
-            <NavLink key={`${item.label}-${item.to}`} to={item.to} className={cn('command-nav-link', isActive && 'command-nav-link-active')}>
+            <NavLink key={item.to} to={item.to} end={item.to === '/dashboard'} className={({ isActive }) => cn('command-nav-link', isActive && 'command-nav-link-active')}>
               <item.icon size={17} strokeWidth={1.8} />
               <span>{item.label}</span>
-              {item.label === 'Incidents' && <span className="command-nav-count">{12}</span>}
-              {item.label === 'Communications' && <span className="command-nav-count">4</span>}
+              {!!count && <span className="command-nav-count">{count}</span>}
             </NavLink>
           );
         })}
       </nav>
 
       <div className="command-operation">
-        <p className="command-overline">Active operation</p>
-        <div className="flex items-center gap-2 text-[12px] text-slate-200"><span className="command-status-dot command-status-dot-amber" /> River flood response</div>
-        <p className="command-mono mt-3">SAC-FL-2026-042</p>
-        <p className="text-[11px] text-slate-400 mt-2 leading-relaxed">Pakistan emergency<br />coordination network</p>
+        <p className="command-overline">Operation area</p>
+        <div className="flex items-start gap-2 text-[12px] text-slate-200"><MapPin size={13} className="mt-0.5 shrink-0" /> {area}</div>
+        <p className="text-[11px] text-slate-400 mt-2 leading-relaxed">
+          {summary.data ? <>{summary.data.openIncidents} open · {summary.data.criticalIncidents} critical<br />{summary.data.activeAssignments} active assignments</> : 'Loading…'}
+        </p>
       </div>
-
-      <div className="command-handover">
-        <p className="command-overline">Next handover</p>
-        <strong>18:00</strong>
-        <span>View shift briefing <Activity size={13} /></span>
-      </div>
-      <NavLink to="/" className="command-help"><HelpCircle size={15} /> Help & protocols</NavLink>
+      <Link to="/" className="command-help"><Globe size={15} /> Public reporting site</Link>
     </aside>
   );
 }
 
-export function DashboardTopBar({ title, subtitle, children }: { title: string; subtitle?: string; children?: React.ReactNode }) {
+const REALTIME_LABELS: Record<RealtimeStatus, string> = { live: 'Live updates on', connecting: 'Connecting…', offline: 'Live updates offline' };
+
+export function DashboardTopBar({ title, subtitle, realtime, children }: { title: string; subtitle?: string; realtime: RealtimeStatus; children?: React.ReactNode }) {
   const auth = useAuth();
+  const area = useOperationArea();
+  const demo = useDemoPresence();
+  const summary = useDashboardSummary();
+  const unack = summary.data?.unacknowledgedAlerts ?? 0;
   const initials = (auth.profile?.full_name || auth.profile?.email || 'Admin').split(/\s+/).map((part) => part[0]).join('').slice(0, 2).toUpperCase();
   return (
     <header className="command-topbar">
       <div className="flex items-center gap-4 min-w-0">
-        {title !== 'Command Center Dashboard' && <div className="command-secondary-title"><strong>{title}</strong>{subtitle && <span>{subtitle}</span>}</div>}
-        <div className="command-top-logo"><Radio size={15} /></div>
-        <span className="command-top-brand">FIELDWORK</span>
+        <div className="command-secondary-title"><strong>{title}</strong>{subtitle && <span>{subtitle}</span>}</div>
         <span className="command-divider" />
-        <span className="command-location">Islamabad Command Centre <ChevronDown size={14} /></span>
-        <span className="command-level"><span /> LEVEL 2 · PARTIAL ACTIVATION</span>
+        <span className="command-location truncate"><MapPin size={14} /> {area}</span>
+        {demo.data && <DemoBadge />}
       </div>
       <div className="flex items-center gap-4">
         {children}
-        <span className="command-operational"><span /> Systems operational</span>
-        <Bell size={17} className="text-slate-600" />
+        <span className={cn('command-operational', realtime !== 'live' && 'text-amber-700')} title="Realtime connection to the database"><span className={realtime === 'live' ? '' : 'bg-amber-500'} /> {REALTIME_LABELS[realtime]}</span>
+        <Link to="/alerts" className="relative text-slate-600 hover:text-slate-900" title={`${unack} unacknowledged alerts`}>
+          <Bell size={17} />
+          {unack > 0 && <span className="absolute -top-1.5 -right-2 min-w-4 h-4 px-1 rounded-full bg-red-600 text-white text-[10px] font-bold grid place-items-center">{unack}</span>}
+        </Link>
         <span className="command-divider hidden md:block" />
         <div className="command-user"><span>{initials}</span><strong>{auth.profile?.full_name || 'Administrator'}</strong></div>
         <button className="text-slate-500 hover:text-slate-800" title="Sign out" onClick={() => void auth.signOut()}><LogOut size={16} /></button>
       </div>
-      <span className="sr-only">{title} {subtitle}</span>
     </header>
   );
 }
 
 export function DashboardLayout({ title, subtitle, children, actions }: { title: string; subtitle?: string; children: React.ReactNode; actions?: React.ReactNode }) {
-  useRealtimeSync();
+  const realtime = useRealtimeSync();
   return (
     <div className="command-app" style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', minHeight: '100vh' }}>
       {/* Sidebar occupies its own grid column and spans the full height independently */}
       <DashboardSidebar />
       {/* Content column: topbar + main, only within this column */}
       <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0, overflow: 'hidden' }}>
-        <DashboardTopBar title={title} subtitle={subtitle}>{actions}</DashboardTopBar>
+        <DashboardTopBar title={title} subtitle={subtitle} realtime={realtime}>{actions}</DashboardTopBar>
         <main className="command-main" style={{ flex: 1, overflowY: 'auto' }}>{children}</main>
       </div>
     </div>

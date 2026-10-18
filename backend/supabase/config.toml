@@ -1,9 +1,17 @@
 project_id = "gzgdcmzxqlrvazawygtu"
 
+[auth]
+additional_redirect_urls = [
+  "https://disaster-response-gray.vercel.app/**",
+]
+
 [functions.ai-extract]
 verify_jwt = false
 
-# Public reporters call this without signing in, like ai-extract.
+[functions.transcriptions]
+verify_jwt = false
+
+# Fahad's English/Urdu voice-agent transcription endpoint.
 [functions.transcribe]
 verify_jwt = false
 

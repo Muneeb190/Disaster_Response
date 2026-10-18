@@ -1,5 +1,5 @@
 import { cn } from '@/lib/utils';
-import type { PriorityLevel, IncidentStatus, VerificationStatus, TeamStatus, AssignmentStatus } from '@/types';
+import { TEAM_STATUS_LABELS, type PriorityLevel, type IncidentStatus, type VerificationStatus, type TeamStatus, type AssignmentStatus } from '@/types';
 
 export function PriorityBadge({ level, className }: { level: PriorityLevel; className?: string }) {
   const map: Record<PriorityLevel, string> = {
@@ -57,14 +57,16 @@ export function TeamStatusBadge({ status, className }: { status: TeamStatus; cla
   const map: Record<TeamStatus, string> = {
     available: 'badge-success',
     assigned: 'badge-warning',
+    en_route: 'badge-info',
+    unavailable: 'badge-error',
     offline: 'badge-neutral',
   };
-  const labels: Record<TeamStatus, string> = {
-    available: 'Available',
-    assigned: 'Assigned',
-    offline: 'Offline',
-  };
-  return <span className={cn(map[status], className)}>{labels[status]}</span>;
+  return <span className={cn(map[status], className)}>{TEAM_STATUS_LABELS[status]}</span>;
+}
+
+// Shown on any seeded/simulated record so demo data is never mistaken for live data.
+export function DemoBadge({ className }: { className?: string }) {
+  return <span className={cn('inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-bold tracking-wide bg-amber-100 text-amber-800 border border-amber-300', className)}>DEMO SCENARIO</span>;
 }
 
 export function AssignmentStatusBadge({ status, className }: { status: AssignmentStatus; className?: string }) {

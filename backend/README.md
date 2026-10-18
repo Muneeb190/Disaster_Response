@@ -9,20 +9,32 @@ supabase/
   config.toml
   migrations/
   functions/ai-extract/
+  functions/transcriptions/
 ```
 
 ## Deploy
 
-Install or invoke the Supabase CLI, authenticate with a scoped personal access token, and run these commands from this `backend` directory:
+Install or invoke the Supabase CLI, authenticate locally with a scoped personal access token, and run these commands from this `backend` directory:
 
 ```bash
 npx supabase link --project-ref gzgdcmzxqlrvazawygtu
 npx supabase db push
 npx supabase functions deploy ai-extract --use-api
+npx supabase functions deploy transcriptions --use-api
 npx supabase functions deploy transcribe --use-api
 ```
 
-The ResQNet migrations and `ai-extract` function are deployed to the configured project. Future deployments only apply new migration files. Review and back up important hosted data before making destructive schema changes.
+Before deploying voice transcription, add `GEMINI_API_KEY` in Supabase Dashboard → Edge Functions → Secrets. The Edge Function sends recordings to Gemini 3.8 Flash for verbatim transcription in the selected language. Never put the key into frontend code, a `VITE_` variable, or a committed file.
+
+Voice audio is stored in the private `voice-recordings` bucket, and the migration adds a recording reference to incidents. Browser recordings are limited to 55 seconds; the API accepts WebM/Ogg audio up to 10 MB. Local offline recordings remain on the user's device and are not submitted automatically.
+
+If an API key has been pasted into chat, a source file, or another shared location, revoke it and create a replacement before saving it as the Supabase secret. Do not paste API keys into chat.
+
+The frontend sends `voice_recording_id` through the public incident-submission RPC. The voice incident submission migration updates that RPC to persist the reference and return it to the report confirmation.
+
+If the browser reports “Failed to send a request to the Edge Function,” redeploy `transcriptions` and confirm `VITE_SUPABASE_URL` points to the same project. This error indicates the request did not receive an HTTP response (commonly an undeployed function, unreachable project URL, or browser CORS/network block); the frontend shows more detail for HTTP errors. Check the function logs and verify that the migration and `GEMINI_API_KEY` secret are applied.
+
+`supabase/config.toml` identifies the intended project, but migrations and functions must be deployed to your Supabase project before the feature is available. `db push` applies migrations that have not yet been applied. Review and back up important hosted data before making schema changes.
 
 Never commit a personal access token, database password, or service-role key.
 

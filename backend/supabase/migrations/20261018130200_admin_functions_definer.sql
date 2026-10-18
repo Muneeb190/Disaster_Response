@@ -34,6 +34,7 @@ begin
   return assignment_id;
 end;
 $$;
+
 create or replace function public.cancel_assignment(p_assignment_id uuid, p_reason text default '', p_actor text default 'coordinator')
 returns void language plpgsql security definer set search_path = public as $$
 declare a_rec record; rid uuid;
@@ -53,6 +54,7 @@ begin
   values (p_actor, 'assignment_cancel', 'assignment', p_assignment_id, jsonb_build_object('reason', p_reason), 'Assignment cancelled');
 end;
 $$;
+
 alter function public.recalculate_incident_priority(uuid, text) security definer;
 create or replace function public.recalculate_incident_priority(p_incident_id uuid, p_actor text default 'system')
 returns table(new_score int, new_level public.priority_level, reasons text[], life_threatening boolean, escalated boolean)
@@ -83,6 +85,7 @@ begin
   return query select after_row.priority_score, after_row.priority_level, after_row.priority_reasons, after_row.life_threatening, esc;
 end;
 $$;
+
 revoke execute on function public.create_assignment(uuid, uuid, uuid[], text) from public, anon;
 grant execute on function public.create_assignment(uuid, uuid, uuid[], text) to authenticated;
 revoke execute on function public.cancel_assignment(uuid, text, text) from public, anon;

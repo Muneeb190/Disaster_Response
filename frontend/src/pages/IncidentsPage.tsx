@@ -1,8 +1,8 @@
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Search, Filter, ArrowRight } from 'lucide-react';
+import { useMemo, useState } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { Search, Filter, ArrowRight, ShieldAlert } from 'lucide-react';
 import { DashboardLayout } from '@/components/dashboard/DashboardLayout';
-import { PriorityBadge, StatusBadge, VerificationBadge } from '@/components/ui/Badges';
+import { DemoBadge, PriorityBadge, StatusBadge, VerificationBadge } from '@/components/ui/Badges';
 import { Skeleton, EmptyState } from '@/components/ui/States';
 import { useIncidents } from '@/hooks/useData';
 import { ConfidenceBadge, UrgentCheckBadge } from '@/components/incident/PriorityPanels';
@@ -12,11 +12,15 @@ import { timeAgo } from '@/lib/utils';
 
 export function IncidentsPage() {
   const navigate = useNavigate();
+  const [params] = useSearchParams();
   const [search, setSearch] = useState('');
-  const [typeFilter, setTypeFilter] = useState<string>('');
-  const [priorityFilter, setPriorityFilter] = useState<string>('');
-  const [statusFilter, setStatusFilter] = useState<string>('');
-  const [verificationFilter, setVerificationFilter] = useState<string>('');
+  const [typeFilter, setTypeFilter] = useState<string>(params.get('type') ?? '');
+  const [priorityFilter, setPriorityFilter] = useState<string>(params.get('priority') ?? '');
+  const [statusFilter, setStatusFilter] = useState<string>(params.get('status') ?? '');
+  const [verificationFilter, setVerificationFilter] = useState<string>(params.get('verification') ?? '');
+  const [areaFilter, setAreaFilter] = useState<string>(params.get('area') ?? '');
+  const [openOnly, setOpenOnly] = useState(params.get('open') !== '0');
+  const [sort, setSort] = useState<'priority' | 'newest' | 'waiting'>('priority');
   const [includeLinked, setIncludeLinked] = useState(false);
 
   const incidents = useIncidents({
@@ -24,11 +28,20 @@ export function IncidentsPage() {
     priority: (priorityFilter || undefined) as PriorityLevel | undefined,
     status: (statusFilter || undefined) as IncidentStatus | undefined,
     verification: (verificationFilter || undefined) as VerificationStatus | undefined,
-    limit: 100,
+    limit: 1000,
     includeLinked,
   });
 
+  const isOpen = (status: IncidentStatus) => !['resolved', 'cancelled'].includes(status);
+  const areas = useMemo(() => [...new Set((incidents.data ?? []).map((i) => i.area_landmark?.trim()).filter((a): a is string => !!a))].sort(), [incidents.data]);
+
+  // Serious but uncertain reports stay pinned at the top whatever filters are set (feature 14 rule).
+  const urgentLane = (incidents.data ?? []).filter((inc) => inc.needs_urgent_check && isOpen(inc.status));
+
   const filtered = (incidents.data ?? []).filter((inc) => {
+    if (openOnly && !statusFilter && !isOpen(inc.status)) return false;
+    if (areaFilter && inc.area_landmark?.trim() !== areaFilter) return false;
+    if (urgentLane.includes(inc)) return false;
     if (!search) return true;
     const q = search.toLowerCase();
     return (
@@ -36,7 +49,7 @@ export function IncidentsPage() {
       inc.description.toLowerCase().includes(q) ||
       (inc.area_landmark?.toLowerCase().includes(q) ?? false)
     );
-  });
+  }).sort((a, b) => sort === 'priority' ? 0 : sort === 'newest' ? b.created_at.localeCompare(a.created_at) : a.created_at.localeCompare(b.created_at));
 
   return (
     <DashboardLayout title="Incidents" subtitle="Search and filter all emergency reports">
@@ -83,20 +96,52 @@ export function IncidentsPage() {
             <option value="disputed">Disputed</option>
             <option value="flagged">Flagged</option>
           </select>
+          <select className="select w-auto" value={areaFilter} onChange={(e) => setAreaFilter(e.target.value)}>
+            <option value="">All Areas</option>
+            {areas.map((area) => <option key={area} value={area}>{area}</option>)}
+          </select>
+          <select className="select w-auto" value={sort} onChange={(e) => setSort(e.target.value as typeof sort)}>
+            <option value="priority">Highest priority first</option>
+            <option value="waiting">Waiting longest first</option>
+            <option value="newest">Newest first</option>
+          </select>
+          <label className="text-xs text-neutral-600 flex items-center gap-1.5"><input type="checkbox" checked={openOnly} onChange={(e) => setOpenOnly(e.target.checked)} /> Open only</label>
           <label className="flex items-center gap-2 text-xs text-neutral-600 whitespace-nowrap">
             <input type="checkbox" checked={includeLinked} onChange={(e) => setIncludeLinked(e.target.checked)} />
             Show combined source reports
           </label>
-          {(typeFilter || priorityFilter || statusFilter || verificationFilter || search) && (
+          {(typeFilter || priorityFilter || statusFilter || verificationFilter || areaFilter || search || includeLinked) && (
             <button
               className="btn-ghost btn-sm"
-              onClick={() => { setTypeFilter(''); setPriorityFilter(''); setStatusFilter(''); setVerificationFilter(''); setSearch(''); }}
+              onClick={() => { setTypeFilter(''); setPriorityFilter(''); setStatusFilter(''); setVerificationFilter(''); setAreaFilter(''); setSearch(''); setIncludeLinked(false); }}
             >
               <Filter size={14} /> Clear
             </button>
           )}
         </div>
       </div>
+
+      {urgentLane.length > 0 && (
+        <div className="card mb-4 border-red-200">
+          <div className="px-4 py-3 border-b border-red-100 bg-red-50 rounded-t-xl flex items-center gap-2 text-sm font-semibold text-red-800">
+            <ShieldAlert size={16} /> Urgent verification ({urgentLane.length})
+            <span className="font-normal text-xs text-red-700">Serious but uncertain — check these first. Always shown, whatever the filters.</span>
+          </div>
+          <div className="divide-y divide-red-50">
+            {urgentLane.map((inc) => (
+              <button key={inc.id} className="w-full text-left px-4 py-3 hover:bg-red-50/50 flex flex-wrap items-center gap-3 text-sm" onClick={() => navigate(`/incidents/${inc.id}`)}>
+                <code className="text-xs font-bold text-primary-700">{inc.report_code}</code>
+                <PriorityBadge level={inc.priority_level} />
+                <ConfidenceBadge level={inc.confidence_level ?? 'low'} score={inc.confidence_score} />
+                <span className="text-xs text-neutral-600">{INCIDENT_TYPE_LABELS[inc.type]}{inc.area_landmark ? ` · ${inc.area_landmark}` : ''}</span>
+                <span className="text-xs text-neutral-500 truncate flex-1">{topReasons(inc.risk_factors).join(' · ')}</span>
+                {inc.is_demo && <DemoBadge />}
+                <span className="text-xs text-neutral-400">{timeAgo(inc.created_at)}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* List */}
       <div className="card overflow-hidden">
@@ -161,7 +206,7 @@ export function IncidentsPage() {
       </div>
 
       <p className="text-xs text-neutral-400 mt-3">
-        Showing {filtered.length} of {incidents.data?.length ?? 0} incidents
+        Showing {filtered.length + urgentLane.length} of {incidents.data?.length ?? 0} incidents{urgentLane.length ? ` (${urgentLane.length} in urgent verification)` : ''}
       </p>
     </DashboardLayout>
   );

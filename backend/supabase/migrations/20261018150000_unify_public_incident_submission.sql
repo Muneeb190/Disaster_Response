@@ -7,17 +7,20 @@ drop function if exists public.submit_public_incident(
   public.tri_state, public.tri_state, public.tri_state, public.tri_state,
   double precision, double precision, text, text
 );
+
 drop function if exists public.submit_public_incident(
   public.incident_type, text, text, integer,
   public.tri_state, public.tri_state, public.tri_state, public.tri_state,
   double precision, double precision, text, text, uuid
 );
+
 drop function if exists public.submit_public_incident(
   public.incident_type, text, text, integer,
   public.tri_state, public.tri_state, public.tri_state, public.tri_state,
   double precision, double precision, text, text,
   jsonb, text, text, public.tri_state, boolean
 );
+
 drop function if exists public.submit_public_incident(
   public.incident_type, text, text, integer,
   public.tri_state, public.tri_state, public.tri_state, public.tri_state,
@@ -25,6 +28,7 @@ drop function if exists public.submit_public_incident(
   jsonb, text, text, public.tri_state, boolean,
   text, text, text, text
 );
+
 create or replace function public.submit_public_incident(
   p_type public.incident_type,
   p_description text,
@@ -132,6 +136,7 @@ begin
   );
 end;
 $$;
+
 revoke execute on function public.submit_public_incident(
   public.incident_type, text, text, integer,
   public.tri_state, public.tri_state, public.tri_state, public.tri_state,
@@ -139,6 +144,7 @@ revoke execute on function public.submit_public_incident(
   jsonb, text, text, public.tri_state, boolean,
   text, text, text, text, uuid
 ) from public;
+
 grant execute on function public.submit_public_incident(
   public.incident_type, text, text, integer,
   public.tri_state, public.tri_state, public.tri_state, public.tri_state,

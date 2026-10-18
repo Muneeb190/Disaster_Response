@@ -1,22 +1,31 @@
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { GitBranch, X, Truck, Check } from 'lucide-react';
 import { DashboardLayout } from '@/components/dashboard/DashboardLayout';
 import { AssignmentStatusBadge } from '@/components/ui/Badges';
 import { Skeleton, EmptyState } from '@/components/ui/States';
+import { ReasonDialog } from '@/components/ui/Modal';
 import { useToast } from '@/components/ui/toast-context';
-import { useAssignments, useIncidents, useTeams, useResources, useCancelAssignment, useUpdateAssignment } from '@/hooks/useData';
-import type { Assignment } from '@/types';
+import { useAssignments, useIncidents, useTeams, useResources, useSetAssignmentStatus } from '@/hooks/useData';
+import type { Assignment, AssignmentStatus } from '@/types';
 import { formatDateTime } from '@/lib/utils';
 
 export function AssignmentsPage() {
   const navigate = useNavigate();
   const { toast } = useToast();
   const assignments = useAssignments();
-  const incidents = useIncidents({ limit: 100 });
+  const incidents = useIncidents({ limit: 1000 });
   const teams = useTeams();
   const resources = useResources();
-  const cancelAssignment = useCancelAssignment();
-  const updateAssignment = useUpdateAssignment();
+  const setStatus = useSetAssignmentStatus();
+  const [pending, setPending] = useState<{ id: string; status: 'completed' | 'cancelled' } | null>(null);
+
+  const changeStatus = async (id: string, status: AssignmentStatus, reason?: string) => {
+    try {
+      await setStatus.mutateAsync({ id, status, reason });
+      toast(status === 'dispatched' ? 'Team dispatched' : status === 'completed' ? 'Assignment completed — team and resources released' : 'Assignment cancelled — team and resources released', 'success');
+    } catch (err) { toast(err instanceof Error ? err.message : 'Failed to update assignment', 'error'); }
+  };
 
   const incMap = new Map(incidents.data?.map((i) => [i.id, i]));
   const teamMap = new Map(teams.data?.map((t) => [t.id, t]));
@@ -87,38 +96,14 @@ export function AssignmentsPage() {
         {['assigned', 'dispatched'].includes(a.status) && (
           <div className="flex items-center gap-2 mt-3 pt-3 border-t border-neutral-100">
             {a.status === 'assigned' && (
-              <button
-                className="btn-secondary btn-sm"
-                onClick={async () => {
-                  try {
-                    await updateAssignment.mutateAsync({ id: a.id, updates: { status: 'dispatched', dispatched_at: new Date().toISOString() } });
-                    toast('Team dispatched', 'success');
-                  } catch { toast('Failed to dispatch', 'error'); }
-                }}
-              >
+              <button className="btn-secondary btn-sm" disabled={setStatus.isPending} onClick={() => void changeStatus(a.id, 'dispatched')}>
                 <Truck size={14} /> Dispatch
               </button>
             )}
-            <button
-              className="btn-secondary btn-sm"
-              onClick={async () => {
-                try {
-                  await updateAssignment.mutateAsync({ id: a.id, updates: { status: 'completed', completed_at: new Date().toISOString() } });
-                  toast('Assignment marked complete', 'success');
-                } catch { toast('Failed to complete', 'error'); }
-              }}
-            >
+            <button className="btn-secondary btn-sm" disabled={setStatus.isPending} onClick={() => setPending({ id: a.id, status: 'completed' })}>
               <Check size={14} /> Complete
             </button>
-            <button
-              className="btn-danger btn-sm ml-auto"
-              onClick={async () => {
-                try {
-                  await cancelAssignment.mutateAsync({ assignmentId: a.id, reason: 'Cancelled by coordinator' });
-                  toast('Assignment cancelled', 'success');
-                } catch { toast('Failed to cancel', 'error'); }
-              }}
-            >
+            <button className="btn-danger btn-sm ml-auto" disabled={setStatus.isPending} onClick={() => setPending({ id: a.id, status: 'cancelled' })}>
               <X size={14} /> Cancel
             </button>
           </div>
@@ -161,6 +146,16 @@ export function AssignmentsPage() {
           )}
         </div>
       )}
+      <ReasonDialog
+        open={!!pending}
+        onClose={() => setPending(null)}
+        onConfirm={(reason) => pending && void changeStatus(pending.id, pending.status, reason)}
+        title={pending?.status === 'cancelled' ? 'Cancel assignment' : 'Complete assignment'}
+        message={pending?.status === 'cancelled' ? 'The team and reserved resources return to the available pool and the incident goes back to the queue.' : 'Resolves the incident and makes the team and reserved resources available again.'}
+        confirmLabel={pending?.status === 'cancelled' ? 'Cancel assignment' : 'Mark completed'}
+        danger={pending?.status === 'cancelled'}
+        required={pending?.status === 'cancelled'}
+      />
     </DashboardLayout>
   );
 }

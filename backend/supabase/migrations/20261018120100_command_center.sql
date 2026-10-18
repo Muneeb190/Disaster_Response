@@ -19,6 +19,7 @@
 -- ===================== DEMO FLAGS =====================
 alter table public.rescue_teams add column if not exists is_demo boolean not null default false;
 alter table public.resources add column if not exists is_demo boolean not null default false;
+
 -- ===================== REMOVE SEED DATA =====================
 -- The app now runs on real data only. Seed rows are identified by how they were made:
 -- seeded incidents were inserted directly and never received a tracking token (real reports
@@ -51,6 +52,7 @@ begin
   where t.current_assignment_id is not null
     and not exists (select 1 from public.assignments a where a.id = t.current_assignment_id);
 end $$;
+
 -- ===================== SHELTERS =====================
 create table if not exists public.shelters (
   id uuid primary key default gen_random_uuid(),
@@ -74,6 +76,7 @@ create table if not exists public.shelters (
   constraint shelters_occupancy_within_capacity check (occupancy <= capacity)
 );
 create index if not exists idx_shelters_location on public.shelters using gist(location);
+
 -- Move shelter rows out of the resources inventory (kept if any assignment references them).
 insert into public.shelters (name, location, capacity, occupancy, is_demo, last_updated_at, created_at)
 select r.name, r.location, r.quantity_available + r.quantity_reserved, r.quantity_reserved, r.is_demo, r.updated_at, r.created_at
@@ -83,6 +86,7 @@ where r.type = 'shelter'
 delete from public.resources r
 where r.type = 'shelter'
   and not exists (select 1 from public.assignments a where r.id = any(a.resource_ids));
+
 create or replace function private.shelter_before_write()
 returns trigger language plpgsql set search_path = '' as $$
 begin
@@ -102,6 +106,7 @@ $$;
 drop trigger if exists trg_shelters_before_write on public.shelters;
 create trigger trg_shelters_before_write before insert or update on public.shelters
   for each row execute function private.shelter_before_write();
+
 -- ===================== AUDIT ATTRIBUTION =====================
 -- Fill the signed-in user and role on every audit row, whichever function wrote it.
 create or replace function private.audit_fill_actor()
@@ -120,6 +125,7 @@ $$;
 drop trigger if exists trg_audit_fill_actor on public.audit_logs;
 create trigger trg_audit_fill_actor before insert on public.audit_logs
   for each row execute function private.audit_fill_actor();
+
 -- Generic change log for operational tables edited from the admin screens.
 create or replace function private.audit_row_change()
 returns trigger language plpgsql security definer set search_path = '' as $$
@@ -153,10 +159,12 @@ create trigger trg_audit_resources after insert or update on public.resources
 drop trigger if exists trg_audit_shelters on public.shelters;
 create trigger trg_audit_shelters after insert or update on public.shelters
   for each row execute function private.audit_row_change('shelter');
+
 -- ===================== ALERT LINKS =====================
 alter table public.alerts
   add column if not exists entity_type text,
   add column if not exists entity_id uuid;
+
 -- ===================== INCIDENT TIMELINE =====================
 create table if not exists public.incident_events (
   id uuid primary key default gen_random_uuid(),
@@ -171,6 +179,7 @@ create table if not exists public.incident_events (
 );
 create index if not exists idx_incident_events_incident on public.incident_events(incident_id, created_at);
 create index if not exists idx_incident_events_created on public.incident_events(created_at desc);
+
 create or replace function private.incident_after_write()
 returns trigger language plpgsql security definer set search_path = '' as $$
 declare v_reason text := nullif(current_setting('resqnet.reason', true), ''); changed jsonb;
@@ -217,6 +226,7 @@ $$;
 drop trigger if exists trg_incident_after_write on public.incidents;
 create trigger trg_incident_after_write after insert or update on public.incidents
   for each row execute function private.incident_after_write();
+
 create or replace function private.assignment_after_write()
 returns trigger language plpgsql security definer set search_path = '' as $$
 declare team_label text;
@@ -245,6 +255,7 @@ $$;
 drop trigger if exists trg_assignment_after_write on public.assignments;
 create trigger trg_assignment_after_write after insert or update on public.assignments
   for each row execute function private.assignment_after_write();
+
 -- Backfill history for existing records.
 insert into public.incident_events (incident_id, event_type, to_value, reason, created_at, actor_user_id)
 select i.id, 'reported', 'reported', 'Report received', i.created_at, null
@@ -262,6 +273,7 @@ cross join lateral (values
 ) as x(event_type, at, reason)
 where x.at is not null
   and not exists (select 1 from public.incident_events e where e.incident_id = a.incident_id and e.event_type = x.event_type and e.created_at = x.at);
+
 -- ===================== DATABASE ALERTS =====================
 create or replace function private.team_after_status()
 returns trigger language plpgsql security definer set search_path = '' as $$
@@ -279,6 +291,7 @@ $$;
 drop trigger if exists trg_team_after_status on public.rescue_teams;
 create trigger trg_team_after_status after update of status on public.rescue_teams
   for each row execute function private.team_after_status();
+
 create or replace function private.resource_after_stock()
 returns trigger language plpgsql security definer set search_path = '' as $$
 begin
@@ -295,6 +308,7 @@ $$;
 drop trigger if exists trg_resource_after_stock on public.resources;
 create trigger trg_resource_after_stock after insert or update of quantity_available, low_stock_threshold on public.resources
   for each row execute function private.resource_after_stock();
+
 create or replace function private.shelter_after_occupancy()
 returns trigger language plpgsql security definer set search_path = '' as $$
 begin
@@ -311,6 +325,7 @@ $$;
 drop trigger if exists trg_shelter_after_occupancy on public.shelters;
 create trigger trg_shelter_after_occupancy after insert or update of occupancy, capacity on public.shelters
   for each row execute function private.shelter_after_occupancy();
+
 -- ===================== PRIORITY ESCALATION FIX =====================
 -- priority_level is declared critical < high < moderate < low, so a smaller
 -- enum value is more urgent. The old check compared the labels as text.
@@ -340,6 +355,7 @@ begin
   return query select v_score, v_level, r, lt, esc;
 end;
 $$;
+
 -- ===================== ADMIN FUNCTIONS =====================
 create or replace function public.admin_set_assignment_status(p_assignment_id uuid, p_status public.assignment_status, p_reason text default null)
 returns public.assignments language plpgsql security definer set search_path = public as $$
@@ -378,6 +394,7 @@ begin
   return a;
 end;
 $$;
+
 create or replace function public.admin_update_incident(p_incident_id uuid, p_changes jsonb, p_reason text default null)
 returns public.incidents language plpgsql security definer set search_path = public as $$
 declare
@@ -435,6 +452,7 @@ begin
   return result;
 end;
 $$;
+
 create or replace function public.admin_set_team_status(p_team_id uuid, p_status public.team_status, p_reason text default null)
 returns public.rescue_teams language plpgsql security definer set search_path = public as $$
 declare t rescue_teams; old_status team_status; v_reason text := nullif(trim(coalesce(p_reason, '')), '');
@@ -459,6 +477,7 @@ begin
   return t;
 end;
 $$;
+
 create or replace function public.admin_adjust_resource(p_resource_id uuid, p_delta int, p_reason text)
 returns public.resources language plpgsql security definer set search_path = public as $$
 declare r resources; v_reason text := nullif(trim(coalesce(p_reason, '')), '');
@@ -481,6 +500,7 @@ begin
   return r;
 end;
 $$;
+
 create or replace function public.admin_adjust_shelter_occupancy(p_shelter_id uuid, p_delta int, p_reason text default null)
 returns public.shelters language plpgsql security definer set search_path = public as $$
 declare s shelters;
@@ -504,6 +524,7 @@ begin
   return s;
 end;
 $$;
+
 create or replace function public.acknowledge_alert(p_alert_id uuid)
 returns public.alerts language plpgsql security definer set search_path = public as $$
 declare a alerts;
@@ -521,6 +542,7 @@ begin
   return a;
 end;
 $$;
+
 -- Responders: dispatch now marks the team travelling, completion releases reserved resources.
 create or replace function public.responder_update_assignment_status(p_assignment_id uuid, p_status public.assignment_status)
 returns public.assignments
@@ -562,6 +584,7 @@ begin
   return result;
 end;
 $$;
+
 -- ===================== SITUATION REPORTS =====================
 create table if not exists public.situation_reports (
   id uuid primary key default gen_random_uuid(),
@@ -572,6 +595,7 @@ create table if not exists public.situation_reports (
   created_at timestamptz not null default now()
 );
 create index if not exists idx_situation_reports_created on public.situation_reports(created_at desc);
+
 create or replace function public.situation_summary(p_hours int default 12)
 returns jsonb language plpgsql stable security definer set search_path = public as $$
 declare since timestamptz := now() - make_interval(hours => greatest(1, least(coalesce(p_hours, 12), 168)));
@@ -612,6 +636,7 @@ begin
   );
 end;
 $$;
+
 create or replace function public.save_situation_report(p_hours int, p_notes text default null)
 returns public.situation_reports language plpgsql security definer set search_path = public as $$
 declare r situation_reports; v_hours int := greatest(1, least(coalesce(p_hours, 12), 168));
@@ -624,10 +649,12 @@ begin
   return r;
 end;
 $$;
+
 -- ===================== ACCESS CONTROL =====================
 alter table public.shelters enable row level security;
 alter table public.incident_events enable row level security;
 alter table public.situation_reports enable row level security;
+
 drop policy if exists shelters_admin_all on public.shelters;
 create policy shelters_admin_all on public.shelters for all to authenticated using (private.is_admin()) with check (private.is_admin());
 drop policy if exists shelters_responder_read on public.shelters;
@@ -640,11 +667,14 @@ create policy incident_events_responder_read on public.incident_events for selec
   using (exists (select 1 from public.assignments a where a.incident_id = incident_events.incident_id and private.is_team_member(a.team_id)));
 drop policy if exists situation_reports_admin_read on public.situation_reports;
 create policy situation_reports_admin_read on public.situation_reports for select to authenticated using (private.is_admin());
+
 revoke all on public.shelters, public.incident_events, public.situation_reports from anon, public;
 grant select, insert, update on public.shelters to authenticated;
 grant select on public.incident_events, public.situation_reports to authenticated;
+
 -- History is append-only: nobody deletes incidents, assignments, alerts or escalations from the app.
 revoke delete on public.incidents, public.assignments, public.alerts, public.escalations, public.audit_logs from authenticated;
+
 do $$
 declare fn text;
 begin
@@ -664,6 +694,7 @@ begin
     execute format('grant execute on function %s to authenticated', fn);
   end loop;
 end $$;
+
 -- ===================== REALTIME =====================
 do $$
 begin

@@ -12,6 +12,7 @@ drop function if exists public.submit_public_incident(
   text,
   text
 );
+
 create function public.submit_public_incident(
   p_type public.incident_type,
   p_description text,
@@ -111,6 +112,7 @@ begin
   );
 end;
 $$;
+
 revoke execute on function public.submit_public_incident(
   public.incident_type,
   text,
@@ -126,6 +128,7 @@ revoke execute on function public.submit_public_incident(
   text,
   uuid
 ) from public;
+
 grant execute on function public.submit_public_incident(
   public.incident_type,
   text,

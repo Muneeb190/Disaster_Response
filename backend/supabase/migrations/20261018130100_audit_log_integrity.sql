@@ -21,5 +21,6 @@ begin
   return new;
 end;
 $$;
+
 drop policy if exists audit_admin_insert on public.audit_logs;
 revoke insert, update, delete on public.audit_logs from authenticated, anon;

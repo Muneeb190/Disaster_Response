@@ -1,7 +1,7 @@
 /* eslint-disable react-refresh/only-export-components */
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import type { Session, User } from '@supabase/supabase-js';
-import { supabase } from '@/lib/supabase';
+import { isSupabaseConfigured, supabase } from '@/lib/supabase';
 
 export type AppRole = 'public' | 'responder' | 'admin';
 export type AccountStatus = 'invited' | 'active' | 'suspended' | 'disabled';
@@ -35,6 +35,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   const loadIdentity = useCallback(async (nextSession?: Session | null) => {
+    if (!isSupabaseConfigured) {
+      setSession(null);
+      setProfile(null);
+      setRoles([]);
+      setTeamIds([]);
+      setLoading(false);
+      return;
+    }
     const activeSession = nextSession === undefined ? (await supabase.auth.getSession()).data.session : nextSession;
     setSession(activeSession);
     if (!activeSession?.user) {
@@ -58,6 +66,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   useEffect(() => {
+    if (!isSupabaseConfigured) {
+      setLoading(false);
+      return;
+    }
     void loadIdentity();
     const { data } = supabase.auth.onAuthStateChange((_event, nextSession) => {
       setLoading(true);

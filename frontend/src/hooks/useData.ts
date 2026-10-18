@@ -3,10 +3,14 @@ import { supabase } from '@/lib/supabase';
 import type {
   Alert,
   Assignment,
+  AssignmentStatus,
   AuditLog,
   Escalation,
   Incident,
+  IncidentEvent,
   IncidentType,
+  Shelter,
+  TeamStatus,
   RecalculateResult,
   RescueTeam,
   Resource,
@@ -34,6 +38,7 @@ export interface CreateIncidentInput {
   followup_field?: string | null;
   followup_answer?: TriState | null;
   followup_skipped?: boolean;
+  voice_recording_id?: string | null;
   input_mode?: 'text' | 'voice';
   voice_transcript?: string | null;
   transcript_language?: import('@/types').TranscriptLanguage | null;
@@ -44,6 +49,7 @@ export interface CreateIncidentResult {
   id: string;
   report_code: string;
   tracking_token: string;
+  voice_recording_id?: string | null;
 }
 
 export interface DashboardSummary {
@@ -57,6 +63,7 @@ export interface DashboardSummary {
   totalResources: number;
   activeAssignments: number;
   unacknowledgedAlerts: number;
+  reportedLastHour: number;
 }
 
 export function useIncidents(filters?: {
@@ -211,6 +218,7 @@ export function useCreateIncident() {
         p_followup_field: input.followup_field ?? null,
         p_followup_answer: input.followup_answer ?? null,
         p_followup_skipped: input.followup_skipped ?? false,
+        p_voice_recording_id: input.voice_recording_id || null,
         p_input_mode: input.input_mode ?? 'text',
         p_voice_transcript: input.voice_transcript ?? null,
         p_transcript_language: input.transcript_language ?? null,
@@ -227,19 +235,31 @@ export function useCreateIncident() {
   });
 }
 
+// Every admin change goes through admin_update_incident: it validates, requires a reason
+// for status/verification/fact changes, recalculates priority and writes the audit log.
 export function useUpdateIncident() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async ({ id, updates }: { id: string; updates: Partial<Incident> }) => {
-      const { data, error } = await supabase.from('incidents').update(updates).eq('id', id).select().single();
+    mutationFn: async ({ id, updates, reason }: { id: string; updates: Partial<Incident>; reason?: string }) => {
+      const { data, error } = await supabase.rpc('admin_update_incident', {
+        p_incident_id: id,
+        p_changes: updates,
+        p_reason: reason || null,
+      });
       if (error) throw error;
       return data as Incident;
     },
     onSuccess: (_, { id }) => {
       queryClient.invalidateQueries({ queryKey: ['incidents'] });
       queryClient.invalidateQueries({ queryKey: ['incident', id] });
+      queryClient.invalidateQueries({ queryKey: ['incident-events', id] });
+      queryClient.invalidateQueries({ queryKey: ['assignments'] });
+      queryClient.invalidateQueries({ queryKey: ['assignments-incident', id] });
+      queryClient.invalidateQueries({ queryKey: ['teams'] });
       queryClient.invalidateQueries({ queryKey: ['dashboard-summary'] });
       queryClient.invalidateQueries({ queryKey: ['alerts'] });
+      queryClient.invalidateQueries({ queryKey: ['escalations', id] });
+      queryClient.invalidateQueries({ queryKey: ['audit-logs'] });
     },
   });
 }
@@ -332,6 +352,24 @@ export function useUpdateTeam() {
   });
 }
 
+// Busy/travelling are driven by assignments; the database rejects setting them by hand.
+export function useSetTeamStatus() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, status, reason }: { id: string; status: TeamStatus; reason?: string }) => {
+      const { data, error } = await supabase.rpc('admin_set_team_status', { p_team_id: id, p_status: status, p_reason: reason || null });
+      if (error) throw error;
+      return data as RescueTeam;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['teams'] });
+      queryClient.invalidateQueries({ queryKey: ['alerts'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-summary'] });
+      queryClient.invalidateQueries({ queryKey: ['audit-logs'] });
+    },
+  });
+}
+
 export function useResources() {
   return useQuery({
     queryKey: ['resources'],
@@ -399,6 +437,80 @@ export function useUpdateResource() {
   });
 }
 
+// Stock changes need a reason; the database keeps quantities at or above zero.
+export function useAdjustResource() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, delta, reason }: { id: string; delta: number; reason: string }) => {
+      const { data, error } = await supabase.rpc('admin_adjust_resource', { p_resource_id: id, p_delta: delta, p_reason: reason });
+      if (error) throw error;
+      return data as Resource;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['resources'] });
+      queryClient.invalidateQueries({ queryKey: ['alerts'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-summary'] });
+      queryClient.invalidateQueries({ queryKey: ['audit-logs'] });
+    },
+  });
+}
+
+export function useShelters() {
+  return useQuery({
+    queryKey: ['shelters'],
+    queryFn: async () => {
+      const { data, error } = await supabase.from('shelters').select('*').order('name');
+      if (error) throw error;
+      return data as Shelter[];
+    },
+  });
+}
+
+type ShelterInput = Partial<Pick<Shelter, 'name' | 'address' | 'capacity' | 'status' | 'wheelchair_access' | 'medical_support' | 'family_area' | 'has_power' | 'notes'>> & {
+  latitude?: number;
+  longitude?: number;
+};
+
+function shelterPayload({ latitude, longitude, ...rest }: ShelterInput) {
+  const payload: Record<string, unknown> = { ...rest };
+  if (latitude !== undefined && longitude !== undefined) payload.location = `POINT(${longitude} ${latitude})`;
+  return payload;
+}
+
+export function useSaveShelter() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, input }: { id?: string; input: ShelterInput }) => {
+      const query = id
+        ? supabase.from('shelters').update(shelterPayload(input)).eq('id', id)
+        : supabase.from('shelters').insert(shelterPayload(input));
+      const { data, error } = await query.select().single();
+      if (error) throw error;
+      return data as Shelter;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['shelters'] });
+      queryClient.invalidateQueries({ queryKey: ['audit-logs'] });
+    },
+  });
+}
+
+export function useAdjustShelterOccupancy() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, delta, reason }: { id: string; delta: number; reason?: string }) => {
+      const { data, error } = await supabase.rpc('admin_adjust_shelter_occupancy', { p_shelter_id: id, p_delta: delta, p_reason: reason || null });
+      if (error) throw error;
+      return data as Shelter;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['shelters'] });
+      queryClient.invalidateQueries({ queryKey: ['alerts'] });
+      queryClient.invalidateQueries({ queryKey: ['audit-logs'] });
+    },
+  });
+}
+
 export function useAssignments() {
   return useQuery({
     queryKey: ['assignments'],
@@ -450,19 +562,25 @@ export function useCreateAssignment() {
   });
 }
 
-export function useUpdateAssignment() {
+// Dispatch marks the team travelling; completion frees the team and its reserved resources.
+export function useSetAssignmentStatus() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async ({ id, updates }: { id: string; updates: Partial<Assignment> }) => {
-      const { data, error } = await supabase.from('assignments').update(updates).eq('id', id).select().single();
+    mutationFn: async ({ id, status, reason }: { id: string; status: AssignmentStatus; reason?: string }) => {
+      const { data, error } = await supabase.rpc('admin_set_assignment_status', { p_assignment_id: id, p_status: status, p_reason: reason || null });
       if (error) throw error;
       return data as Assignment;
     },
-    onSuccess: () => {
+    onSuccess: (assignment) => {
       queryClient.invalidateQueries({ queryKey: ['assignments'] });
+      queryClient.invalidateQueries({ queryKey: ['assignments-incident', assignment.incident_id] });
       queryClient.invalidateQueries({ queryKey: ['incidents'] });
+      queryClient.invalidateQueries({ queryKey: ['incident', assignment.incident_id] });
+      queryClient.invalidateQueries({ queryKey: ['incident-events', assignment.incident_id] });
       queryClient.invalidateQueries({ queryKey: ['teams'] });
+      queryClient.invalidateQueries({ queryKey: ['resources'] });
       queryClient.invalidateQueries({ queryKey: ['dashboard-summary'] });
+      queryClient.invalidateQueries({ queryKey: ['audit-logs'] });
     },
   });
 }
@@ -500,11 +618,15 @@ export function useTeamRecommendations(incidentId: string) {
   });
 }
 
-export function useAlerts() {
+export function useAlerts(limit = 50) {
   return useQuery({
-    queryKey: ['alerts'],
+    queryKey: ['alerts', limit],
     queryFn: async () => {
-      const { data, error } = await supabase.from('alerts').select('*').order('created_at', { ascending: false }).limit(50);
+      const { data, error } = await supabase
+        .from('alerts')
+        .select('*, incidents(report_code), profiles(full_name,email)')
+        .order('created_at', { ascending: false })
+        .limit(limit);
       if (error) throw error;
       return data as Alert[];
     },
@@ -515,13 +637,29 @@ export function useAcknowledgeAlert() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (alertId: string) => {
-      const { error } = await supabase
-        .from('alerts')
-        .update({ acknowledged: true, acknowledged_at: new Date().toISOString() })
-        .eq('id', alertId);
+      const { error } = await supabase.rpc('acknowledge_alert', { p_alert_id: alertId });
       if (error) throw error;
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['alerts'] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['alerts'] });
+      queryClient.invalidateQueries({ queryKey: ['audit-logs'] });
+    },
+  });
+}
+
+export function useIncidentEvents(incidentId: string) {
+  return useQuery({
+    queryKey: ['incident-events', incidentId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('incident_events')
+        .select('*, profiles(full_name,email)')
+        .eq('incident_id', incidentId)
+        .order('created_at', { ascending: true });
+      if (error) throw error;
+      return data as IncidentEvent[];
+    },
+    enabled: !!incidentId,
   });
 }
 
@@ -541,17 +679,88 @@ export function useEscalations(incidentId: string) {
   });
 }
 
-export function useAuditLogs(entityType?: string, entityId?: string, limit = 20) {
+export function useAuditLogs(entityType?: string, entityId?: string, limit = 20, filters?: { action?: string; actorId?: string; sinceHours?: number }) {
   return useQuery({
-    queryKey: ['audit-logs', entityType, entityId, limit],
+    queryKey: ['audit-logs', entityType, entityId, limit, filters],
     queryFn: async () => {
-      let query = supabase.from('audit_logs').select('*').order('created_at', { ascending: false }).limit(limit);
+      let query = supabase.from('audit_logs').select('*, profiles(full_name,email)').order('created_at', { ascending: false }).limit(limit);
       if (entityType) query = query.eq('entity_type', entityType);
       if (entityId) query = query.eq('entity_id', entityId);
+      if (filters?.action) query = query.eq('action', filters.action);
+      if (filters?.actorId) query = query.eq('actor_user_id', filters.actorId);
+      if (filters?.sinceHours) query = query.gte('created_at', new Date(Date.now() - filters.sinceHours * 3_600_000).toISOString());
       const { data, error } = await query;
       if (error) throw error;
       return data as AuditLog[];
     },
+  });
+}
+
+export interface SituationSummary {
+  generated_at: string;
+  period_hours: number;
+  contains_demo_data: boolean;
+  incidents: { open: number; critical_open: number; unassigned_open: number; unverified_open: number; urgent_check_open: number; reported_in_period: number; resolved_in_period: number };
+  urgent: Pick<Incident, 'report_code' | 'type' | 'area_landmark' | 'priority_level' | 'priority_score' | 'status' | 'verification_status' | 'life_threatening' | 'confidence_level' | 'needs_urgent_check' | 'created_at'>[];
+  teams: Partial<Record<TeamStatus, number>>;
+  active_assignments: number;
+  shortages: { name: string; type: string; available: number; threshold: number }[];
+  shelters: { open: number; full: number; capacity: number; occupancy: number; stale: number };
+  alerts_unacknowledged: number;
+  recent_changes: { report_code: string; event_type: string; from_value: string | null; to_value: string | null; reason: string | null; created_at: string }[];
+}
+
+export function useSituationSummary(hours: number) {
+  return useQuery({
+    queryKey: ['situation-summary', hours],
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc('situation_summary', { p_hours: hours });
+      if (error) throw error;
+      return data as SituationSummary;
+    },
+  });
+}
+
+export function useSituationReports() {
+  return useQuery({
+    queryKey: ['situation-reports'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('situation_reports')
+        .select('id, period_hours, notes, created_at, profiles(full_name,email)')
+        .order('created_at', { ascending: false })
+        .limit(10);
+      if (error) throw error;
+      return data as unknown as { id: string; period_hours: number; notes: string | null; created_at: string; profiles: { full_name: string; email: string } | null }[];
+    },
+  });
+}
+
+export function useSaveSituationReport() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ hours, notes }: { hours: number; notes: string }) => {
+      const { data, error } = await supabase.rpc('save_situation_report', { p_hours: hours, p_notes: notes });
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['situation-reports'] });
+      queryClient.invalidateQueries({ queryKey: ['audit-logs'] });
+    },
+  });
+}
+
+// True when any seeded/simulated rows exist, so screens can show the DEMO SCENARIO label.
+export function useDemoPresence() {
+  return useQuery({
+    queryKey: ['demo-presence'],
+    queryFn: async () => {
+      const tables = ['incidents', 'rescue_teams', 'resources', 'shelters'] as const;
+      const results = await Promise.all(tables.map((table) => supabase.from(table).select('id', { count: 'exact', head: true }).eq('is_demo', true)));
+      return results.some((result) => (result.count ?? 0) > 0);
+    },
+    staleTime: 60_000,
   });
 }
 
@@ -560,7 +769,7 @@ export function useDashboardSummary() {
     queryKey: ['dashboard-summary'],
     queryFn: async (): Promise<DashboardSummary> => {
       const [incidents, teams, resources, assignments, alerts] = await Promise.all([
-        supabase.from('incidents').select('status, priority_level'),
+        supabase.from('incidents').select('status, priority_level, created_at'),
         supabase.from('rescue_teams').select('status'),
         supabase.from('resources').select('quantity_available, quantity_reserved, low_stock_threshold'),
         supabase.from('assignments').select('status'),
@@ -571,7 +780,8 @@ export function useDashboardSummary() {
         if (result.error) throw result.error;
       }
 
-      const incidentData = incidents.data as Pick<Incident, 'status' | 'priority_level'>[];
+      const incidentData = incidents.data as Pick<Incident, 'status' | 'priority_level' | 'created_at'>[];
+      const hourAgo = Date.now() - 3_600_000;
       const teamData = teams.data as Pick<RescueTeam, 'status'>[];
       const resourceData = resources.data as Pick<Resource, 'quantity_available' | 'quantity_reserved' | 'low_stock_threshold'>[];
       const assignmentData = assignments.data as Pick<Assignment, 'status'>[];
@@ -590,6 +800,7 @@ export function useDashboardSummary() {
         totalResources: resourceData.length,
         activeAssignments: assignmentData.filter((item) => ['assigned', 'dispatched'].includes(item.status)).length,
         unacknowledgedAlerts: alertData.filter((item) => !item.acknowledged).length,
+        reportedLastHour: incidentData.filter((item) => new Date(item.created_at).getTime() >= hourAgo).length,
       };
     },
     refetchInterval: 15000,
