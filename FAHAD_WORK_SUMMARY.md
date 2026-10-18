@@ -75,6 +75,14 @@ Last updated: 18 October 2026
 - Added a dashboard button for enabling browser alerts.
 - Danger-zone changes invalidate and refresh map data automatically.
 
+## Weather warnings and early risk escalation
+
+- Added a keyless 24-hour Islamabad forecast feed through a Supabase Edge Function.
+- Detects heavy rain and flash-flood risk, dangerous heat, strong wind, and thunderstorms.
+- Shows warning-specific public safety instructions directly on the response dashboard.
+- Cross-checks active incidents against weather hazards and flags matching non-critical incidents for early coordinator review.
+- Uses the existing incident and escalation architecture; no additional database table or migration was created.
+
 ## Dashboard and Pakistan localization
 
 - Removed remaining Sacramento-specific dashboard content.

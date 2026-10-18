@@ -11,6 +11,7 @@ import { useToast } from '@/components/ui/toast-context';
 import { timeAgo } from '@/lib/utils';
 import { ALERT_TYPE_LABELS, TEAM_MARKER_COLORS, TEAM_STATUS_LABELS, type TeamStatus } from '@/types';
 import { enableBrowserNotifications } from '@/lib/notifications';
+import { WeatherSafetyPanel } from '@/components/weather/WeatherSafetyPanel';
 
 function useNow(intervalMs = 1000) {
   const [now, setNow] = useState(() => Date.now());
@@ -105,6 +106,8 @@ export function DashboardPage() {
           <button onClick={() => navigate('/incidents?priority=critical')}>Open queue <ArrowUpRight size={13} /></button>
         </div>
       )}
+
+      <WeatherSafetyPanel incidents={openIncidents} />
 
       <div className="command-kpi-grid">
         {kpis.map((kpi) => {
