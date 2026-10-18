@@ -24,6 +24,12 @@ export interface Incident {
   life_threatening: boolean;
   previous_priority_score: number | null;
   previous_priority_level: PriorityLevel | null;
+  calculated_priority_score: number | null;
+  calculated_priority_level: PriorityLevel | null;
+  priority_override_level: PriorityLevel | null;
+  priority_override_reason: string | null;
+  priority_override_by: string | null;
+  priority_override_at: string | null;
   verification_status: VerificationStatus;
   status: IncidentStatus;
   assigned_team_id: string | null;

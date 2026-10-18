@@ -17,6 +17,7 @@ import type {
   TeamRecommendation,
   TriState,
   DuplicateCandidate,
+  PriorityLevel,
 } from '@/types';
 
 export interface CreateIncidentInput {
@@ -157,6 +158,24 @@ export function useUnlinkDuplicateReport() {
   });
 }
 
+export function useDismissDuplicateSuggestion() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ incidentId, candidateId, reason }: { incidentId: string; candidateId: string; reason: string }) => {
+      const { error } = await supabase.rpc('dismiss_duplicate_suggestion', {
+        p_incident_id: incidentId,
+        p_candidate_id: candidateId,
+        p_reason: reason,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['duplicate-candidates'] });
+      queryClient.invalidateQueries({ queryKey: ['audit-logs'] });
+    },
+  });
+}
+
 export function useIncident(id: string) {
   return useQuery({
     queryKey: ['incident', id],
@@ -269,6 +288,43 @@ export function useRecalculatePriority() {
       queryClient.invalidateQueries({ queryKey: ['incidents'] });
       queryClient.invalidateQueries({ queryKey: ['alerts'] });
       queryClient.invalidateQueries({ queryKey: ['escalations', incidentId] });
+    },
+  });
+}
+
+export function useAppendIncidentDetails() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ reportCode, trackingToken, details }: { reportCode: string; trackingToken: string; details: string }) => {
+      const { error } = await supabase.rpc('append_public_incident_details', {
+        p_report_code: reportCode,
+        p_tracking_token: trackingToken || null,
+        p_details: details,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['incident-by-code'] }),
+  });
+}
+
+export function useOverrideIncidentPriority() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ incidentId, level, reason }: { incidentId: string; level: PriorityLevel | null; reason: string }) => {
+      const { data, error } = await supabase.rpc('admin_override_incident_priority', {
+        p_incident_id: incidentId,
+        p_level: level,
+        p_reason: reason,
+      });
+      if (error) throw error;
+      return data as Incident;
+    },
+    onSuccess: (_, { incidentId }) => {
+      queryClient.invalidateQueries({ queryKey: ['incident', incidentId] });
+      queryClient.invalidateQueries({ queryKey: ['incidents'] });
+      queryClient.invalidateQueries({ queryKey: ['incident-events', incidentId] });
+      queryClient.invalidateQueries({ queryKey: ['audit-logs'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-summary'] });
     },
   });
 }

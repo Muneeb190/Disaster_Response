@@ -1,11 +1,11 @@
 import { useState } from 'react';
-import { Link2, MapPin, Split, Clock, ArrowRight, Files } from 'lucide-react';
+import { Link2, MapPin, Split, Clock, ArrowRight, Files, X } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { ConfirmDialog } from '@/components/ui/Modal';
+import { ConfirmDialog, ReasonDialog } from '@/components/ui/Modal';
 import { LoadingSpinner } from '@/components/ui/States';
 import { PriorityBadge, StatusBadge } from '@/components/ui/Badges';
 import { useToast } from '@/components/ui/toast-context';
-import { useDuplicateCandidates, useIncident, useLinkedReports, useLinkDuplicateReport, useUnlinkDuplicateReport } from '@/hooks/useData';
+import { useDismissDuplicateSuggestion, useDuplicateCandidates, useIncident, useLinkedReports, useLinkDuplicateReport, useUnlinkDuplicateReport } from '@/hooks/useData';
 import type { Incident } from '@/types';
 import { timeAgo } from '@/lib/utils';
 
@@ -16,8 +16,10 @@ export function DuplicateReportsPanel({ incident }: { incident: Incident }) {
   const primary = useIncident(incident.primary_incident_id ?? '');
   const linkReport = useLinkDuplicateReport();
   const unlinkReport = useUnlinkDuplicateReport();
+  const dismissSuggestion = useDismissDuplicateSuggestion();
   const [confirmLink, setConfirmLink] = useState<{ id: string; code: string } | null>(null);
   const [confirmUnlink, setConfirmUnlink] = useState<{ id: string; code: string } | null>(null);
+  const [dismissCandidate, setDismissCandidate] = useState<{ id: string; code: string } | null>(null);
 
   const combine = async () => {
     if (!confirmLink) return;
@@ -35,6 +37,15 @@ export function DuplicateReportsPanel({ incident }: { incident: Incident }) {
       toast(`${confirmUnlink.code} separated into its own incident`, 'success');
     } catch (error) { toast(error instanceof Error ? error.message : 'Could not separate report', 'error'); }
     finally { setConfirmUnlink(null); }
+  };
+
+  const dismiss = async (reason: string) => {
+    if (!dismissCandidate) return;
+    try {
+      await dismissSuggestion.mutateAsync({ incidentId: incident.id, candidateId: dismissCandidate.id, reason });
+      toast(`${dismissCandidate.code} rejected as a duplicate`, 'success');
+    } catch (error) { toast(error instanceof Error ? error.message : 'Could not reject suggestion', 'error'); }
+    finally { setDismissCandidate(null); }
   };
 
   if (incident.primary_incident_id) {
@@ -69,11 +80,12 @@ export function DuplicateReportsPanel({ incident }: { incident: Incident }) {
             <div className="flex flex-wrap items-center gap-2"><Link to={`/incidents/${candidate.incident_id}`} className="text-xs font-bold text-primary-700 hover:underline">{candidate.report_code}</Link><span className="badge-warning text-[10px]">{candidate.score}% match</span><PriorityBadge level={candidate.priority_level} /><StatusBadge status={candidate.status} /></div>
             <p className="text-xs text-neutral-700 mt-2 line-clamp-2">{candidate.description}</p>
             <div className="flex flex-wrap gap-3 mt-2 text-[10px] text-neutral-500"><span className="flex items-center gap-1"><MapPin size={11} /> {candidate.distance_m < 1000 ? `${candidate.distance_m} m` : `${(candidate.distance_m / 1000).toFixed(1)} km`} away</span><span className="flex items-center gap-1"><Clock size={11} /> {Math.round(candidate.time_difference_minutes / 60)}h apart</span><span>{Math.round(candidate.description_similarity * 100)}% text similarity</span></div>
-          </div><button className="btn-primary btn-sm" onClick={() => setConfirmLink({ id: candidate.incident_id, code: candidate.report_code })}><Link2 size={13} /> Combine here</button></div>
+          </div><div className="flex shrink-0 flex-col gap-2"><button className="btn-primary btn-sm" onClick={() => setConfirmLink({ id: candidate.incident_id, code: candidate.report_code })}><Link2 size={13} /> Combine here</button><button className="btn-secondary btn-sm" onClick={() => setDismissCandidate({ id: candidate.incident_id, code: candidate.report_code })}><X size={13} /> Not a duplicate</button></div></div>
         </div>)}</div> : <p className="text-xs text-neutral-400">No likely duplicates found within 1 km and 24 hours.</p>}
       </section>
     </div>
     <ConfirmDialog open={!!confirmLink} onClose={() => setConfirmLink(null)} onConfirm={() => void combine()} title="Combine these reports?" message={`${confirmLink?.code ?? 'This report'} will be linked to ${incident.report_code}. The original remains saved and can be separated later.`} confirmLabel="Combine reports" />
     <ConfirmDialog open={!!confirmUnlink} onClose={() => setConfirmUnlink(null)} onConfirm={() => void separate()} title="Separate this report?" message="The source report will become an independent incident again. Its original details remain unchanged." confirmLabel="Separate" />
+    <ReasonDialog open={!!dismissCandidate} onClose={() => setDismissCandidate(null)} onConfirm={(reason) => void dismiss(reason)} title="Reject duplicate suggestion" message={`Explain why ${dismissCandidate?.code ?? 'this report'} describes a different emergency. This decision is kept in the audit history.`} confirmLabel="Reject suggestion" />
   </div>;
 }

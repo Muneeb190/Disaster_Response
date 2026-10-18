@@ -48,6 +48,7 @@ export interface TranscriptionJob {
   language: string | null;
   confidence: number | null;
   error: string | null;
+  analysis?: import('@/types').VoiceTranscription | null;
 }
 
 async function transcriptionFunctionError(

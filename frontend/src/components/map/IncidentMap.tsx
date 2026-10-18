@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, CircleMarker, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
@@ -170,42 +170,85 @@ export function IncidentMap({ incidents = [], teams = [], resources = [], shelte
 // A simpler map for picking a location (report form)
 export function LocationPicker({ onPick, initialPos, center: viewCenter }: { onPick: (lat: number, lng: number) => void; initialPos?: [number, number]; center?: [number, number] }) {
   const center = initialPos || viewCenter || [28.61, 77.2];
+  const [locateRequest, setLocateRequest] = useState(1);
+  const [locationStatus, setLocationStatus] = useState<'locating' | 'found' | 'unavailable'>('locating');
   return (
-    <div className="card overflow-hidden h-[300px]">
-      <MapContainer center={center} zoom={12} style={{ height: '100%', width: '100%' }} scrollWheelZoom>
-        <TileLayer
-          attribution='&copy; OpenStreetMap contributors'
-          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-        />
-        <LocationClickHandler onPick={onPick} initialPos={initialPos} />
-      </MapContainer>
+    <div>
+      <div className="mb-2 flex flex-wrap items-center justify-between gap-2 text-xs">
+        <span role="status" aria-live="polite" className={locationStatus === 'found' ? 'text-green-700' : locationStatus === 'unavailable' ? 'text-amber-700' : 'text-neutral-600'}>
+          {locationStatus === 'locating' && 'Requesting your device location…'}
+          {locationStatus === 'found' && 'Device location detected. You can move the pin by tapping the map.'}
+          {locationStatus === 'unavailable' && 'Automatic location was unavailable. Tap the map to place the pin manually.'}
+        </span>
+        <button type="button" className="btn-secondary btn-sm" onClick={() => { setLocationStatus('locating'); setLocateRequest((value) => value + 1); }}>
+          Use my location
+        </button>
+      </div>
+      <div className="card overflow-hidden h-[300px]">
+        <MapContainer center={center} zoom={12} style={{ height: '100%', width: '100%' }} scrollWheelZoom>
+          <TileLayer
+            attribution='&copy; OpenStreetMap contributors'
+            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+          />
+          <LocationClickHandler onPick={onPick} initialPos={initialPos} locateRequest={locateRequest} onLocationStatus={setLocationStatus} />
+        </MapContainer>
+      </div>
     </div>
   );
 }
 
-function LocationClickHandler({ onPick, initialPos }: { onPick: (lat: number, lng: number) => void; initialPos?: [number, number] }) {
+function LocationClickHandler({ onPick, initialPos, locateRequest, onLocationStatus }: { onPick: (lat: number, lng: number) => void; initialPos?: [number, number]; locateRequest: number; onLocationStatus: (status: 'locating' | 'found' | 'unavailable') => void }) {
   const map = useMap();
   const markerRef = useRef<L.Marker | null>(null);
+  const onPickRef = useRef(onPick);
+  onPickRef.current = onPick;
+
+  const placeMarker = useCallback((lat: number, lng: number, zoom = false) => {
+    const latLng = L.latLng(lat, lng);
+    if (markerRef.current) markerRef.current.setLatLng(latLng);
+    else {
+      markerRef.current = L.marker(latLng, { draggable: true }).addTo(map);
+      markerRef.current.on('dragend', () => {
+        const position = markerRef.current?.getLatLng();
+        if (position) onPickRef.current(position.lat, position.lng);
+      });
+    }
+    if (zoom) map.setView(latLng, 16);
+    onPickRef.current(lat, lng);
+  }, [map]);
 
   useEffect(() => {
     // Only place the starting marker once; re-renders must not stack extra markers.
     if (initialPos && !markerRef.current) {
-      markerRef.current = L.marker(initialPos).addTo(map);
+      markerRef.current = L.marker(initialPos, { draggable: true }).addTo(map);
       map.setView(initialPos, 14);
     }
     const handler = (e: L.LeafletMouseEvent) => {
-      if (markerRef.current) {
-        markerRef.current.setLatLng(e.latlng);
-      } else {
-        markerRef.current = L.marker(e.latlng).addTo(map);
-      }
-      onPick(e.latlng.lat, e.latlng.lng);
+      placeMarker(e.latlng.lat, e.latlng.lng);
     };
     map.on('click', handler);
     return () => {
       map.off('click', handler);
     };
-  }, [map, onPick, initialPos]);
+  }, [map, initialPos, placeMarker]);
+
+  useEffect(() => {
+    if (initialPos || !navigator.geolocation) {
+      if (!initialPos) onLocationStatus('unavailable');
+      return;
+    }
+    let active = true;
+    navigator.geolocation.getCurrentPosition(
+      ({ coords }) => {
+        if (!active) return;
+        placeMarker(coords.latitude, coords.longitude, true);
+        onLocationStatus('found');
+      },
+      () => { if (active) onLocationStatus('unavailable'); },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 },
+    );
+    return () => { active = false; };
+  }, [locateRequest, initialPos, map, onLocationStatus, placeMarker]);
 
   return null;
 }

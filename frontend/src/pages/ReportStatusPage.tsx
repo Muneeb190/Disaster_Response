@@ -1,20 +1,34 @@
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { Radio, ArrowLeft, Search, Check, Clock, MapPin, AlertTriangle } from 'lucide-react';
-import { useIncidentByReportCode } from '@/hooks/useData';
+import { useAppendIncidentDetails, useIncidentByReportCode } from '@/hooks/useData';
 import { PriorityBadge, StatusBadge, VerificationBadge, TriStateBadge } from '@/components/ui/Badges';
 import { INCIDENT_TYPE_LABELS } from '@/types';
 import { LoadingSpinner, EmptyState } from '@/components/ui/States';
 import { timeAgo, formatDateTime } from '@/lib/utils';
 import { useAuth } from '@/auth/AuthContext';
+import { useToast } from '@/components/ui/toast-context';
 
 export function ReportStatusPage() {
   const auth = useAuth();
-  const [code, setCode] = useState('');
-  const [trackingToken, setTrackingToken] = useState('');
-  const [searched, setSearched] = useState(false);
+  const { toast } = useToast();
+  const [params] = useSearchParams();
+  const initialCode = (params.get('code') ?? '').toUpperCase();
+  const [code, setCode] = useState(initialCode);
+  const [trackingToken, setTrackingToken] = useState(() => initialCode ? sessionStorage.getItem(`resqnet_tracking_${initialCode}`) ?? '' : '');
+  const [searched, setSearched] = useState(Boolean(initialCode && (trackingToken || auth.user)));
+  const [additionalDetails, setAdditionalDetails] = useState('');
+  const appendDetails = useAppendIncidentDetails();
 
   const { data: incident, isFetching } = useIncidentByReportCode(searched ? code : '', searched ? trackingToken : '');
+
+  const addDetails = async () => {
+    try {
+      await appendDetails.mutateAsync({ reportCode: code, trackingToken, details: additionalDetails });
+      setAdditionalDetails('');
+      toast('Your additional information was sent to coordinators.', 'success');
+    } catch (error) { toast(error instanceof Error ? error.message : 'Could not add details', 'error'); }
+  };
 
   return (
     <div className="min-h-screen bg-neutral-50">
@@ -158,6 +172,12 @@ export function ReportStatusPage() {
                     Flagged for urgent coordinator review: immediate danger to life reported.
                   </div>
                 )}
+
+                <div className="rounded-lg border border-neutral-200 p-3">
+                  <label className="label">Add information to this report</label>
+                  <textarea className="input resize-none" rows={3} value={additionalDetails} onChange={(event) => setAdditionalDetails(event.target.value)} placeholder="New danger, people affected, access instructions, or another useful update" />
+                  <div className="mt-2 flex items-center justify-between gap-3"><p className="text-xs text-neutral-500">The original report stays in the history.</p><button className="btn-primary btn-sm" disabled={additionalDetails.trim().length < 5 || appendDetails.isPending} onClick={() => void addDetails()}>{appendDetails.isPending ? <LoadingSpinner size={14} /> : 'Send update'}</button></div>
+                </div>
 
                 <p className="text-xs text-neutral-400 flex items-center gap-1">
                   <Clock size={12} />

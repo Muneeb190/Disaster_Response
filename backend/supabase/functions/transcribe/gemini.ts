@@ -60,6 +60,7 @@ export const PROMPT = `This audio is an emergency report from a member of the pu
    - English must be written in English.
    - If the speaker mixes the two, keep each part in its own script.
    - Do not translate, summarise, correct or add anything. Leave out filler sounds only.
+   - If a word cannot be heard reliably, write [unclear] at that exact position. Never guess the word.
    - If there is no clear speech, return an empty transcript.
 2. language: "en" for English, "ur" for Urdu, "mixed" for both, "other" for anything else.
 3. english_translation: a faithful English translation of the transcript (the same text if it is already English).

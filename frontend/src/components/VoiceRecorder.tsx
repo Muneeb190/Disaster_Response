@@ -7,13 +7,14 @@ import {
   type LocalVoiceRecording,
 } from '@/lib/voiceStorage';
 import { uploadVoiceRecording, getTranscription } from '@/lib/api';
+import type { VoiceTranscription } from '@/types';
 
 type RecorderState = 'idle' | 'recording' | 'transcribing' | 'ready' | 'error';
 type SpeechLanguage = 'ur-PK' | 'en-US';
 
 interface VoiceRecorderProps {
   description: string;
-  onTranscript: (transcript: string) => void;
+  onTranscript: (transcript: string, analysis?: VoiceTranscription | null) => void;
   onRecordingId: (recordingId: string | null) => void;
   onUploadingChange: (uploading: boolean) => void;
   onLocalAudioSaved: () => void;
@@ -191,7 +192,7 @@ export function VoiceRecorder({
           if (result.transcript) {
             backendTranscriptionReceivedRef.current = true;
             setTranscriptText(result.transcript);
-            onTranscript(result.transcript);
+            onTranscript(result.transcript, result.analysis);
           } else {
             backendTranscriptionFailedRef.current = true;
             applyBrowserTranscript();
