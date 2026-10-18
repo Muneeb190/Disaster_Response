@@ -1,54 +1,38 @@
 # ResQNet Frontend
 
-React 18, TypeScript, Vite, Tailwind CSS, TanStack Query, and Leaflet frontend for ResQNet.
+The primary ResQNet web application is built with React 18, TypeScript, Vite,
+Tailwind CSS, TanStack Query, Supabase, and Leaflet. It includes a PWA build.
 
-## Environment
+For the complete project setup, Supabase configuration/deployment, authentication,
+roles, application workflows, and production instructions, see the
+[repository README](../README.md).
 
-Copy `.env.example` to `.env` and set the browser-safe Supabase credentials:
+## Local development
 
-```env
-VITE_SUPABASE_URL=https://your-project.supabase.co
-VITE_SUPABASE_PUBLISHABLE_KEY=your-publishable-key
+```powershell
+npm ci
+Copy-Item .env.example .env
 ```
 
-Do not place a service-role key in this folder or in any `VITE_` variable.
+Set `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY` in `.env`, then run:
 
-## Development
-
-```bash
-npm ci
+```powershell
 npm run dev
 ```
 
-The application runs at `http://127.0.0.1:5173` by default.
+`VITE_MAPTILER_KEY` is optional; the map falls back to OpenStreetMap. Never put
+service-role keys or server-side secrets in frontend variables.
 
-## Validation and production build
+## Checks and build
 
-```bash
-npm run typecheck
+```powershell
 npm run lint
+npm run typecheck
 npm run build
+npm run preview
 ```
 
-Deploy the generated `dist/` directory. For Vercel or Netlify, set the project root/base directory to `frontend`, use `npm run build`, and publish `dist`.
-
-For Vercel, add both variables under **Project Settings → Environment Variables** and enable them for every environment that will build the app. Git branch URLs such as `*-git-branch-*` are Preview deployments, so selecting only Production will leave them unconfigured. Redeploy after changing the variables because Vite embeds them at build time.
-
-Never use `https://placeholder.supabase.co` or commit a service-role key. The production build intentionally fails when the browser-safe configuration is missing or still contains placeholder values.
-
-## Routes
-
-- `/` citizen landing page
-- `/report` emergency report form
-- `/status` report-code lookup
-- `/dashboard` command center
-- `/incidents` incident queue
-- `/teams` rescue-team management
-- `/resources` resource inventory
-- `/assignments` assignment management
-
-## Voice emergency reports
-
-On `/report`, users can record up to 55 seconds of audio and choose Urdu (Pakistan) or English. The recording is uploaded to the `transcriptions` Supabase Edge Function, which stores it in private storage and starts Gemini transcription. The complete transcript is editable before submission, and a report can be submitted while transcription is processing once the recording reference has been received. Reports still require the form's existing written description and pinned location.
-
-If upload fails, the browser attempts to save the recording in IndexedDB. The page provides a playback/download/delete option and clearly states that a local recording has not been sent to rescuers. Deploy the matching backend migration and Edge Function and configure `GEMINI_API_KEY` as described in the backend README.
+The static production bundle is generated in `dist/`. Configure the hosting
+provider's base directory as `frontend`, build with `npm run build`, and publish
+`dist/`. Set the two required Supabase variables for every build environment;
+Vite embeds them at build time.
