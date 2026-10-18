@@ -9,6 +9,8 @@ import { LocationField } from '@/components/map/LocationField';
 import { useShelters, useSaveShelter, useAdjustShelterOccupancy } from '@/hooks/useData';
 import { parseLocation, type Shelter, type ShelterStatus } from '@/types';
 import { timeAgo } from '@/lib/utils';
+import { useQuery } from '@tanstack/react-query';
+import { supabase } from '@/lib/supabase';
 
 const STALE_MS = 6 * 3_600_000;
 const FACILITIES = [
@@ -26,6 +28,7 @@ export function SheltersPage() {
   const adjust = useAdjustShelterOccupancy();
   const [editing, setEditing] = useState<Shelter | 'new' | null>(null);
   const [needs, setNeeds] = useState<FacilityKey[]>([]);
+  const pressure=useQuery({queryKey:['shelter-pressure'],queryFn:async()=>{const{data,error}=await supabase.rpc('shelter_pressure');if(error)throw error;return data as Array<{shelter_id:string;shelter_name:string;expected_arrivals:number;projected_free:number;overflow_risk:boolean}>}});
 
   const list = (shelters.data ?? []).filter((s) => needs.every((need) => s[need] === true));
   const open = (shelters.data ?? []).filter((s) => s.status !== 'closed');
@@ -55,6 +58,7 @@ export function SheltersPage() {
           </label>
         ))}
       </div>
+      {!!pressure.data?.some(row=>Number(row.expected_arrivals)>0)&&<div className="card card-body mb-4"><h2 className="font-semibold">Expected arrivals and overflow risk</h2><div className="grid md:grid-cols-2 gap-2 mt-3">{pressure.data.map(row=><div key={row.shelter_id} className={`rounded border p-3 text-sm ${row.overflow_risk?'border-red-300 bg-red-50':'border-neutral-200'}`}><strong>{row.shelter_name}</strong><p className="text-xs mt-1">{row.expected_arrivals} expected · {row.projected_free} projected spaces free</p>{row.overflow_risk&&<p className="text-xs font-semibold text-red-700 mt-1">Overflow warning — direct the next group elsewhere.</p>}</div>)}</div></div>}
 
       {shelters.isLoading ? (
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">{[1, 2, 3].map((i) => <Skeleton key={i} className="h-48 w-full" />)}</div>

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   ArrowLeft, CheckCircle2, CircleDot, Crosshair, LifeBuoy,
@@ -29,6 +29,7 @@ import {
 } from '@/types';
 import { useToast } from '@/components/ui/toast-context';
 import { formatDateTime, timeAgo } from '@/lib/utils';
+import { cacheAssignments, cachedAssignments, queueOffline } from '@/lib/offlineSync';
 
 const REQUIRED_EQUIPMENT: Record<Incident['type'], string[]> = {
   flood: ['Boat or high-clearance vehicle', 'Life jackets', 'Rescue rope', 'First-aid kit'],
@@ -67,11 +68,15 @@ export function ResponderPage() {
   const [rejecting, setRejecting] = useState<Assignment | null>(null);
   const [backupFor, setBackupFor] = useState<Assignment | null>(null);
   const [completionFor, setCompletionFor] = useState<Assignment | null>(null);
+  const [offlineData,setOfflineData]=useState<{assignments:Assignment[];incidents:Incident[];teams:ReturnType<typeof useTeams>['data'];resources:Resource[]}|null>(null);
 
-  const incidentById = new Map(incidents.data?.map((incident) => [incident.id, incident]));
-  const teamById = new Map(teams.data?.map((team) => [team.id, team]));
-  const resourceById = new Map(resources.data?.map((resource) => [resource.id, resource]));
+  const incidentRows=incidents.data??offlineData?.incidents??[];const teamRows=teams.data??offlineData?.teams??[];const resourceRows=resources.data??offlineData?.resources??[];
+  const incidentById = new Map(incidentRows.map((incident) => [incident.id, incident]));
+  const teamById = new Map(teamRows.map((team) => [team.id, team]));
+  const resourceById = new Map(resourceRows.map((resource) => [resource.id, resource]));
   const busy = action.isPending || reject.isPending || complete.isPending || locating;
+  useEffect(()=>{if(assignments.data&&incidents.data&&teams.data&&resources.data)void cacheAssignments({assignments:assignments.data,incidents:incidents.data,teams:teams.data,resources:resources.data});if(!navigator.onLine)void cachedAssignments<typeof offlineData>().then(rows=>setOfflineData(rows??null))},[assignments.data,incidents.data,teams.data,resources.data]);
+  const assignmentRows=assignments.data??offlineData?.assignments??[];
 
   const withLocation = async () => {
     setLocating(true);
@@ -84,6 +89,11 @@ export function ResponderPage() {
   const sendAction = async (assignment: Assignment, fieldAction: 'accept' | 'arrived' | 'victim_reached', success: string) => {
     try {
       const location = await withLocation();
+      if (!navigator.onLine) {
+        await queueOffline('responder_action', { p_assignment_id: assignment.id, p_action: fieldAction, p_reason: null, p_latitude: location?.latitude ?? null, p_longitude: location?.longitude ?? null, p_accuracy_m: location?.accuracy ?? null });
+        toast(`${success} queued and will sync once, in order, when connected`, 'success');
+        return;
+      }
       await action.mutateAsync({ assignmentId: assignment.id, action: fieldAction, location });
       toast(location ? `${success} — current location attached` : success, 'success');
     } catch (error) { toast(error instanceof Error ? error.message : 'Unable to update assignment', 'error'); }
@@ -102,6 +112,10 @@ export function ResponderPage() {
     if (!backupFor) return;
     try {
       const location = await withLocation();
+      if (!navigator.onLine) {
+        await queueOffline('responder_action', { p_assignment_id: backupFor.id, p_action: 'needs_backup', p_reason: reason, p_latitude: location?.latitude ?? null, p_longitude: location?.longitude ?? null, p_accuracy_m: location?.accuracy ?? null });
+        setBackupFor(null); toast('Backup request queued for ordered synchronization', 'success'); return;
+      }
       await action.mutateAsync({ assignmentId: backupFor.id, action: 'needs_backup', reason, location });
       setBackupFor(null);
       toast('Critical backup request sent to the command centre', 'success');
@@ -125,11 +139,11 @@ export function ResponderPage() {
         </div>
 
         <div className="mt-6 space-y-4">
-          {assignments.isLoading || incidents.isLoading || teams.isLoading || resources.isLoading ? (
+          {((assignments.isLoading || incidents.isLoading || teams.isLoading || resources.isLoading) && navigator.onLine) ? (
             <div className="card card-body grid place-items-center"><LoadingSpinner /></div>
-          ) : assignments.error || incidents.error ? (
+          ) : (assignments.error || incidents.error) && !offlineData ? (
             <div className="card card-body text-sm text-red-700">Assignments could not be loaded. Refresh the page or check your team membership.</div>
-          ) : assignments.data?.length ? assignments.data.map((assignment) => {
+          ) : assignmentRows.length ? assignmentRows.map((assignment) => {
             const incident = incidentById.get(assignment.incident_id);
             const team = teamById.get(assignment.team_id);
             if (!incident) return null;

@@ -26,6 +26,7 @@ import { AtRiskRegisterPage } from '@/pages/AtRiskRegisterPage';
 import { SafetyCheckinPage } from '@/pages/SafetyCheckinPage';
 import { VulnerabilityPage } from '@/pages/VulnerabilityPage';
 import { PlanningPage } from '@/pages/PlanningPage';
+import { NetworkStatusBanner } from '@/components/system/NetworkStatusBanner';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -41,6 +42,7 @@ export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <ToastProvider>
+        <NetworkStatusBanner />
         <BrowserRouter>
           <AuthProvider>
           <Routes>

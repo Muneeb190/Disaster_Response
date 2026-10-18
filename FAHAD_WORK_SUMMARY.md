@@ -81,7 +81,25 @@ Last updated: 18 October 2026
 - Detects heavy rain and flash-flood risk, dangerous heat, strong wind, and thunderstorms.
 - Shows warning-specific public safety instructions directly on the response dashboard.
 - Cross-checks active incidents against weather hazards and flags matching non-critical incidents for early coordinator review.
-- Uses the existing incident and escalation architecture; no additional database table or migration was created.
+- Initially reused the existing incident and escalation architecture; Phase D later added the persistent planning records required for approval and audit history.
+
+## Phase D — acting early
+
+- Weather feed warnings are now persisted as sourced `hazard_events` with observation time, expiry, source URL, and geographic coverage.
+- Feed warnings create confirmed official danger-zone map layers alongside provisional report zones.
+- Coordinators can generate and approve pre-positioning suggestions; approved resource movements are written to the existing movement ledger.
+- Active hazards produce a pre-hazard evacuation list for registered residents with mobility, oxygen, dialysis, bedridden, or isolation needs.
+- Shelter pressure includes expected arrivals, projected free space, and an overflow warning before capacity is exceeded.
+
+## Phase E — offline and low-signal operation
+
+- Added a durable IndexedDB outbox for full public reports and responder field actions.
+- Queued operations replay in creation order when connectivity returns.
+- Server-side idempotency keys ensure report and responder retries are applied once.
+- Responder assignments are cached locally and status/backup taps can be queued with captured GPS.
+- Added a global offline, syncing, and queued-action banner.
+- Added persistent low-data mode; text reports are sent first and photo upload is skipped when enabled.
+- Added an authenticated SMS webhook and clearly labelled simulated SMS inbox; messages without coordinates remain for human review.
 
 ## Dashboard and Pakistan localization
 
