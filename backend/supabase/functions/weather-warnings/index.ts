@@ -7,6 +7,41 @@ const json = (body: unknown, status = 200) => new Response(JSON.stringify(body),
 
 type Warning = { id: string; title: string; severity: "moderate" | "high" | "critical"; detail: string; instructions: string[]; incident_types: string[] };
 
+async function persistWarnings(warnings: Warning[], latitude: number, longitude: number) {
+  const base = Deno.env.get("SUPABASE_URL");
+  const key = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+  if (!base || !key || !warnings.length) return;
+  const d = 0.06;
+  const zone = `SRID=4326;POLYGON((${longitude-d} ${latitude-d},${longitude+d} ${latitude-d},${longitude+d} ${latitude+d},${longitude-d} ${latitude+d},${longitude-d} ${latitude-d}))`;
+  const observed = new Date();
+  const expires = new Date(observed.getTime() + 24 * 60 * 60 * 1000);
+  const rows = warnings.map((warning) => ({
+    feed_key: `open-meteo-islamabad-${warning.id}`,
+    title: warning.title,
+    hazard_type: warning.id === "heavy-rain" || warning.id === "thunderstorm" ? "flood" : warning.id === "extreme-heat" ? "heatwave" : "other",
+    message: `${warning.detail} ${warning.instructions.join(" ")}`,
+    severity: warning.severity,
+    source: "Open-Meteo",
+    source_url: "https://open-meteo.com/",
+    observed_at: observed.toISOString(),
+    expires_at: expires.toISOString(),
+    zone,
+    is_simulation: false,
+    active: true,
+  }));
+  const response = await fetch(`${base}/rest/v1/hazard_events?on_conflict=feed_key`, {
+    method: "POST",
+    headers: { apikey: key, Authorization: `Bearer ${key}`, "Content-Type": "application/json", Prefer: "resolution=merge-duplicates,return=minimal" },
+    body: JSON.stringify(rows),
+  });
+  if (!response.ok) console.error("Could not persist weather warnings", response.status, await response.text());
+  else {
+    const keys=rows.map(row=>row.feed_key).join(',');
+    const found=await fetch(`${base}/rest/v1/hazard_events?select=id,feed_key,title,hazard_type,severity,message,expires_at&feed_key=in.(${keys})`,{headers:{apikey:key,Authorization:`Bearer ${key}`}});
+    if(found.ok){const events=await found.json() as Array<Record<string,string>>;await fetch(`${base}/rest/v1/danger_zones?on_conflict=hazard_event_id`,{method:'POST',headers:{apikey:key,Authorization:`Bearer ${key}`,'Content-Type':'application/json',Prefer:'resolution=merge-duplicates,return=minimal'},body:JSON.stringify(events.map(event=>({hazard_event_id:event.id,name:event.title,hazard_type:event.hazard_type,severity:event.severity,zone,radius_m:6000,source:'official',verification_status:'confirmed',instructions:event.message,active:true,expires_at:event.expires_at})))})}
+  }
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: cors });
   if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
@@ -58,6 +93,7 @@ Deno.serve(async (req: Request) => {
       detail: "Thunderstorms are forecast within the next 24 hours.", incident_types: ["flood", "fire", "medical_emergency", "other"],
       instructions: ["Move indoors and avoid rooftops, open ground, and isolated trees.", "Unplug sensitive equipment where safe and avoid contact with electrical wiring.", "Delay travel during intense lightning or rain."],
     });
+    await persistWarnings(warnings, latitude, longitude);
     return json({ area: input.area || "Islamabad, Pakistan", latitude, longitude, issued_at: new Date().toISOString(), valid_hours: 24, source: "Open-Meteo forecast", warnings });
   } catch (error) {
     console.error(error);

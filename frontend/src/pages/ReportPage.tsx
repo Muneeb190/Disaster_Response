@@ -5,7 +5,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Radio, ArrowLeft, ArrowRight, Check, Copy, MapPin, Sparkles, AlertCircle, Search, MessageCircleQuestion, ChevronDown, Camera } from 'lucide-react';
 import { LocationPicker } from '@/components/map/IncidentMap';
-import { useCreateIncident } from '@/hooks/useData';
+import { useCreateIncident, type CreateIncidentInput } from '@/hooks/useData';
 import { useToast } from '@/components/ui/toast-context';
 import { LoadingSpinner } from '@/components/ui/States';
 import { Modal } from '@/components/ui/Modal';
@@ -13,6 +13,7 @@ import { pickFollowupQuestion, type FollowupQuestion } from '@/lib/followup';
 import { VoiceRecorder } from '@/components/VoiceRecorder';
 import { reverseGeocode } from '@/lib/geocoding';
 import type { IncidentType, TriState, VoiceTranscription } from '@/types';
+import { lowDataEnabled, queueOffline } from '@/lib/offlineSync';
 import { uploadIncidentPhoto } from '@/lib/evidence';
 import { PublicShelterSuggestions } from '@/components/incident/PublicShelterSuggestions';
 import { SafetyGuidance } from '@/components/incident/SafetyGuidance';
@@ -191,7 +192,7 @@ export function ReportPage() {
     try {
       const clientSessionId = localStorage.getItem('resqnet_reporter_session') || crypto.randomUUID();
       localStorage.setItem('resqnet_reporter_session', clientSessionId);
-      const incident = await createIncident.mutateAsync({
+      const reportInput: CreateIncidentInput = {
         type: data.type,
         description: data.description,
         area_landmark: data.area_landmark,
@@ -217,9 +218,16 @@ export function ReportPage() {
         is_proxy_report: proxyReport,
         proxy_relationship: proxyRelationship,
         vulnerability_flags: vulnerabilityFlags,
-      });
+      };
+      if (!navigator.onLine) {
+        const queuedId = await queueOffline('public_report', reportInput as unknown as Record<string, unknown>, photo ?? undefined);
+        setSubmittedType(data.type); setSubmittedCode('QUEUED-OFFLINE'); setSubmittedToken(queuedId);
+        toast('Report saved securely on this device and will send automatically when connected', 'success');
+        return;
+      }
+      const incident = await createIncident.mutateAsync(reportInput);
       setSubmittedType(data.type);
-      if (photo) {
+      if (photo && !lowDataEnabled()) {
         try {
           await uploadIncidentPhoto(photo, incident.report_code, incident.tracking_token);
           setPhotoResult('uploaded');
@@ -228,6 +236,7 @@ export function ReportPage() {
           toast(photoError instanceof Error ? photoError.message : 'The report was received, but the photo could not be uploaded', 'warning');
         }
       }
+      if (photo && lowDataEnabled()) { await queueOffline('photo_upload',{report_code:incident.report_code,tracking_token:incident.tracking_token},photo); toast('Low-data mode sent the text first; the photo will upload later', 'warning'); }
       setSubmittedCode(incident.report_code);
       setSubmittedToken(incident.tracking_token);
       sessionStorage.setItem(`resqnet_tracking_${incident.report_code}`, incident.tracking_token);
