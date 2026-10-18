@@ -21,6 +21,13 @@ const DOT: Record<string, string> = {
   assignment_dispatched: 'bg-blue-600',
   assignment_completed: 'bg-green-600',
   assignment_cancelled: 'bg-red-500',
+  responder_arrived: 'bg-blue-600',
+  victim_reached: 'bg-green-500',
+  backup_requested: 'bg-red-600',
+  completion_report: 'bg-green-700',
+  evidence_uploaded: 'bg-purple-500',
+  evidence_verified: 'bg-green-600',
+  evidence_disputed: 'bg-red-500',
 };
 
 function describe(event: IncidentEvent): string {
@@ -34,6 +41,13 @@ function describe(event: IncidentEvent): string {
     case 'assignment_dispatched': return `Team dispatched: ${event.to_value}`;
     case 'assignment_completed': return `Assignment completed: ${event.to_value}`;
     case 'assignment_cancelled': return `Assignment cancelled: ${event.to_value}`;
+    case 'responder_arrived': return `Responder arrived: ${event.to_value}`;
+    case 'victim_reached': return `Victim reached: ${event.to_value}`;
+    case 'backup_requested': return `Backup requested by ${event.to_value}`;
+    case 'completion_report': return `Completion report: ${event.to_value ?? '0'} people reached`;
+    case 'evidence_uploaded': return 'Reporter added private photo evidence';
+    case 'evidence_verified': return 'Photo evidence verified';
+    case 'evidence_disputed': return 'Photo evidence disputed';
     case 'facts_updated': {
       const changes = Object.entries((event.details ?? {}) as Record<string, { from: unknown; to: unknown }>)
         .map(([key, change]) => `${FACT_LABELS[key] ?? key} ${String(change.from ?? '—')} → ${String(change.to ?? '—')}`);

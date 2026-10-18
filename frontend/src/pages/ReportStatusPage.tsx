@@ -8,6 +8,9 @@ import { LoadingSpinner, EmptyState } from '@/components/ui/States';
 import { timeAgo, formatDateTime } from '@/lib/utils';
 import { useAuth } from '@/auth/AuthContext';
 import { useToast } from '@/components/ui/toast-context';
+import { PublicShelterSuggestions } from '@/components/incident/PublicShelterSuggestions';
+import { SafetyGuidance } from '@/components/incident/SafetyGuidance';
+import { EvidenceUploader } from '@/components/incident/EvidenceUploader';
 
 export function ReportStatusPage() {
   const auth = useAuth();
@@ -99,6 +102,7 @@ export function ReportStatusPage() {
             )}
 
             {!isFetching && incident && (
+              <>
               <div className="card card-body space-y-4 animate-fade-in">
                 {/* Header */}
                 <div className="flex items-start justify-between gap-3 pb-3 border-b border-neutral-200">
@@ -184,6 +188,12 @@ export function ReportStatusPage() {
                   Last updated {formatDateTime(incident.updated_at)}
                 </p>
               </div>
+              <div className="mt-4 space-y-4">
+                {trackingToken && <EvidenceUploader reportCode={incident.report_code} trackingToken={trackingToken} />}
+                <PublicShelterSuggestions reportCode={incident.report_code} trackingToken={trackingToken} vulnerable={incident.vulnerable_people === 'yes'} />
+                <SafetyGuidance type={incident.type} />
+              </div>
+              </>
             )}
           </>
         )}

@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { Radio, ArrowLeft, ArrowRight, Check, Copy, MapPin, Sparkles, AlertCircle, Search, MessageCircleQuestion, ChevronDown } from 'lucide-react';
+import { Radio, ArrowLeft, ArrowRight, Check, Copy, MapPin, Sparkles, AlertCircle, Search, MessageCircleQuestion, ChevronDown, Camera } from 'lucide-react';
 import { LocationPicker } from '@/components/map/IncidentMap';
 import { useCreateIncident } from '@/hooks/useData';
 import { useToast } from '@/components/ui/toast-context';
@@ -13,6 +13,10 @@ import { pickFollowupQuestion, type FollowupQuestion } from '@/lib/followup';
 import { VoiceRecorder } from '@/components/VoiceRecorder';
 import { reverseGeocode } from '@/lib/geocoding';
 import type { IncidentType, TriState, VoiceTranscription } from '@/types';
+import { uploadIncidentPhoto } from '@/lib/evidence';
+import { PublicShelterSuggestions } from '@/components/incident/PublicShelterSuggestions';
+import { SafetyGuidance } from '@/components/incident/SafetyGuidance';
+import { EvidenceUploader } from '@/components/incident/EvidenceUploader';
 
 const schema = z.object({
   type: z.enum(['flood', 'fire', 'medical_emergency', 'heatwave', 'other']),
@@ -50,6 +54,9 @@ export function ReportPage() {
   const [locationName, setLocationName] = useState('');
   const [submittedCode, setSubmittedCode] = useState<string | null>(null);
   const [submittedToken, setSubmittedToken] = useState<string | null>(null);
+  const [submittedType, setSubmittedType] = useState<IncidentType>('other');
+  const [photo, setPhoto] = useState<File | null>(null);
+  const [photoResult, setPhotoResult] = useState<'uploaded' | 'failed' | null>(null);
   const [aiExtracting, setAiExtracting] = useState(false);
   const [aiError, setAiError] = useState<string | null>(null);
   const [aiResults, setAiResults] = useState<Record<string, unknown> | null>(null);
@@ -204,6 +211,16 @@ export function ReportPage() {
         transcript_english: voiceResult ? (voiceResult.english_translation || voiceResult.transcript) : null,
         voice_recording_id: voiceRecordingId,
       });
+      setSubmittedType(data.type);
+      if (photo) {
+        try {
+          await uploadIncidentPhoto(photo, incident.report_code, incident.tracking_token);
+          setPhotoResult('uploaded');
+        } catch (photoError) {
+          setPhotoResult('failed');
+          toast(photoError instanceof Error ? photoError.message : 'The report was received, but the photo could not be uploaded', 'warning');
+        }
+      }
       setSubmittedCode(incident.report_code);
       setSubmittedToken(incident.tracking_token);
       sessionStorage.setItem(`resqnet_tracking_${incident.report_code}`, incident.tracking_token);
@@ -217,7 +234,8 @@ export function ReportPage() {
   if (submittedCode) {
     return (
       <div className="min-h-screen bg-neutral-50 flex items-center justify-center p-6">
-        <div className="card max-w-lg w-full card-body text-center">
+        <div className="w-full max-w-2xl space-y-4">
+        <div className="card w-full card-body text-center">
           <div className="w-16 h-16 rounded-full bg-green-50 flex items-center justify-center mx-auto mb-4">
             <Check size={32} className="text-green-600" />
           </div>
@@ -271,6 +289,12 @@ export function ReportPage() {
               Back to Home
             </Link>
           </div>
+        </div>
+        {photoResult === 'uploaded' && <p className="rounded-lg border border-green-200 bg-green-50 p-3 text-center text-xs text-green-800">Your compressed photo was stored privately for authorized response staff.</p>}
+        {photoResult === 'failed' && <p className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-center text-xs text-amber-900">Your report was received, but the selected photo was not uploaded. You can try again below.</p>}
+        {submittedToken && <EvidenceUploader reportCode={submittedCode} trackingToken={submittedToken} />}
+        {submittedToken && <PublicShelterSuggestions reportCode={submittedCode} trackingToken={submittedToken} vulnerable={watch('vulnerable_people') === 'yes'} />}
+        <SafetyGuidance type={submittedType} />
         </div>
       </div>
     );
@@ -393,6 +417,19 @@ export function ReportPage() {
                 {locationName || 'Selected location'}
               </div>
             )}
+          </div>
+
+          {/* Private photo evidence */}
+          <div className="card card-body">
+            <label className="label flex items-center gap-2"><Camera size={16} /> Photo evidence <span className="font-normal text-neutral-400">(optional)</span></label>
+            <input
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              capture="environment"
+              className="input text-sm"
+              onChange={(event) => setPhoto(event.target.files?.[0] ?? null)}
+            />
+            <p className="mt-2 text-xs text-neutral-500">The website compresses the photo before sending it. It is stored privately and can be reviewed only by authorized responders and coordinators.</p>
           </div>
 
           <button type="button" className="card card-body w-full flex-row items-center justify-between text-left" onClick={() => setMoreDetails((value) => !value)} aria-expanded={moreDetails}>
